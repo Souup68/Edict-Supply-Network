@@ -760,18 +760,27 @@ function updateEveConnectUI() {
   const accessToken = sessionStorage.getItem('eve_access_token');
   const charId = sessionStorage.getItem('eve_char_id');
   
+  const panel = document.querySelector('[data-eve-connect]');
+  if (!panel) return;
+  
   if (charName && accessToken && charId) {
     // Show logged-in UI
-    const panel = document.querySelector('[data-eve-connect]');
-    if (panel) {
-      panel.innerHTML = `
-        <div class="panel-title">EVE Character Connected</div>
-        <div class="actions" style="align-items: center; gap: 12px;">
-          <span style="color: var(--goldlt); font-weight: 600;">✓ Signed in as <strong>${charName}</strong></span>
-          <button class="btn btn-primary" onclick="refreshEveAssets()" style="margin-left: auto;">🔄 Refresh Assets</button>
-        </div>
-      `;
-    }
+    panel.innerHTML = `
+      <div class="panel-title">EVE Character Connected</div>
+      <div style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+        <span style="color: var(--goldlt); font-weight: 600;">✓ Signed in as <strong>${charName}</strong></span>
+        <button class="btn btn-primary" onclick="refreshEveAssets()">🔄 Refresh Assets</button>
+      </div>
+    `;
+  } else {
+    // Show login UI
+    panel.innerHTML = `
+      <div class="panel-title">Connect EVE Character</div>
+      <p class="hint">Authorize access to your character's assets to auto-populate mineral quantities. No data is stored on external servers.</p>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="initEveOAuth()">🔐 Connect with EVE SSO</button>
+      </div>
+    `;
   }
 }
 
@@ -1611,8 +1620,8 @@ function toast(msg) {
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
-function init() {
-  handleEveOAuthCallback();
+async function init() {
+  await handleEveOAuthCallback();
   updateEveConnectUI();
   buildInputs();
   buildReqInputs();
