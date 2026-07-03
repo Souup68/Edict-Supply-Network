@@ -765,6 +765,7 @@ function updateEveConnectUI() {
   
   if (charName && accessToken && charId) {
     // Show logged-in UI
+    console.log('Rendering logged-in UI with Sign Out button');
     panel.innerHTML = `
       <div class="panel-title">EVE Character Connected</div>
       <div style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
@@ -777,6 +778,7 @@ function updateEveConnectUI() {
     `;
   } else {
     // Show login UI
+    console.log('Rendering login UI');
     panel.innerHTML = `
       <div class="panel-title">Connect EVE Character</div>
       <p class="hint">Authorize access to your character's assets to auto-populate mineral quantities. No data is stored on external servers.</p>
