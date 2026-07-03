@@ -646,6 +646,21 @@ const EVE_AUTH_URL = 'https://login.eveonline.com/v2/oauth/authorize';
 const EVE_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
 const EVE_ESI_URL = 'https://esi.evetech.net/latest';
 
+// Extract character ID from JWT token
+function getCharIdFromJwt(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Invalid JWT format');
+    const payload = JSON.parse(atob(parts[1]));
+    const charStr = payload.sub; // e.g., "CHARACTER:EVE:90640971"
+    const charId = charStr.split(':')[2];
+    return parseInt(charId, 10);
+  } catch (e) {
+    console.error('JWT decode error:', e);
+    return null;
+  }
+}
+
 // PKCE helpers
 function generateRandomString(length) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -720,16 +735,19 @@ async function handleEveOAuthCallback() {
     
     if (!tokenRes.ok) throw new Error('Token exchange failed');
     const tokenData = await tokenRes.json();
-    console.log('Token exchange successful, character ID:', tokenData.character_id);
+    
+    const charId = getCharIdFromJwt(tokenData.access_token);
+    if (!charId) throw new Error('Failed to extract character ID from token');
+    console.log('Token exchange successful, character ID:', charId);
     
     sessionStorage.setItem('eve_access_token', tokenData.access_token);
-    sessionStorage.setItem('eve_char_id', tokenData.character_id);
+    sessionStorage.setItem('eve_char_id', charId);
     
     // Clean up URL
     window.history.replaceState({}, document.title, window.location.pathname);
     
     toast('Connected to EVE! Fetching assets...');
-    await fetchEveAssets(tokenData.access_token, tokenData.character_id);
+    await fetchEveAssets(tokenData.access_token, charId);
   } catch (e) {
     console.error('OAuth callback error:', e);
     toast('OAuth callback failed: ' + e.message);
