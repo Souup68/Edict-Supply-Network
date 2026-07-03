@@ -771,6 +771,8 @@ async function fetchEveAssets(token, charId) {
       }
     });
     
+    console.log('Mineral map:', mineralMap);
+    
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
       const el = document.getElementById('inp-' + slug(mineral));
       if (el) el.value = qty;
