@@ -758,12 +758,16 @@ async function fetchEveAssets(token, charId) {
     
     if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
     const assets = await res.json();
+    console.log('Total assets returned:', assets.length);
+    console.log('All asset type IDs:', assets.map(a => a.type_id).slice(0, 50));
     
     const mineralMap = {};
     const mineralIds = new Set(Object.values(MINERAL_IDS));
+    console.log('Looking for mineral IDs:', Array.from(mineralIds));
     
     assets.forEach(item => {
       if (mineralIds.has(item.type_id)) {
+        console.log('Found mineral:', item.type_id, item.quantity);
         const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
         if (mineralName) {
           mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
@@ -771,7 +775,7 @@ async function fetchEveAssets(token, charId) {
       }
     });
     
-    console.log('Mineral map:', mineralMap);
+    console.log('Mineral map result:', mineralMap);
     
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
       const el = document.getElementById('inp-' + slug(mineral));
