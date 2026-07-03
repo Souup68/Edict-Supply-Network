@@ -704,22 +704,31 @@ async function handleEveOAuthCallback() {
   const code = params.get('code');
   const state = params.get('state');
   
-  if (!code) return;
+  console.log('handleEveOAuthCallback: code=', code, 'state=', state);
+  
+  if (!code) {
+    console.log('No code found, skipping OAuth callback');
+    return;
+  }
   
   const savedState = sessionStorage.getItem('eve_state');
   if (state !== savedState) {
     toast('OAuth state mismatch — possible security issue.');
+    console.error('State mismatch. Expected:', savedState, 'Got:', state);
     return;
   }
   
   const codeVerifier = sessionStorage.getItem('eve_code_verifier');
   if (!codeVerifier) {
     toast('Code verifier not found.');
+    console.error('No code verifier in sessionStorage');
     return;
   }
   
   try {
     const redirectUri = window.location.href.split('?')[0].split('#')[0];
+    console.log('Exchanging code for token. redirectUri:', redirectUri);
+    
     const tokenRes = await fetch(EVE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -734,13 +743,16 @@ async function handleEveOAuthCallback() {
     
     if (!tokenRes.ok) throw new Error('Token exchange failed');
     const tokenData = await tokenRes.json();
+    console.log('Token received:', tokenData.access_token.substring(0, 50) + '...');
     
     const charInfo = getCharInfoFromJwt(tokenData.access_token);
+    console.log('Character info extracted:', charInfo);
     if (!charInfo) throw new Error('Failed to extract character info from token');
     
     sessionStorage.setItem('eve_access_token', tokenData.access_token);
     sessionStorage.setItem('eve_char_id', charInfo.charId);
     sessionStorage.setItem('eve_char_name', charInfo.charName);
+    console.log('SessionStorage updated with charName:', charInfo.charName);
     
     // Update UI to show logged-in state
     updateEveConnectUI();
@@ -751,6 +763,7 @@ async function handleEveOAuthCallback() {
     toast('Connected to EVE! Fetching assets...');
     await fetchEveAssets(tokenData.access_token, charInfo.charId);
   } catch (e) {
+    console.error('OAuth callback error:', e);
     toast('OAuth callback failed: ' + e.message);
   }
 }
@@ -760,10 +773,16 @@ function updateEveConnectUI() {
   const accessToken = sessionStorage.getItem('eve_access_token');
   const charId = sessionStorage.getItem('eve_char_id');
   
+  console.log('updateEveConnectUI called. charName:', charName, 'token:', !!accessToken, 'charId:', charId);
+  
   const panel = document.querySelector('[data-eve-connect]');
-  if (!panel) return;
+  if (!panel) {
+    console.error('Panel with data-eve-connect not found');
+    return;
+  }
   
   if (charName && accessToken && charId) {
+    console.log('Showing logged-in UI');
     // Show logged-in UI
     panel.innerHTML = `
       <div class="panel-title">EVE Character Connected</div>
@@ -773,6 +792,7 @@ function updateEveConnectUI() {
       </div>
     `;
   } else {
+    console.log('Showing login UI (missing charName, token, or charId)');
     // Show login UI
     panel.innerHTML = `
       <div class="panel-title">Connect EVE Character</div>
