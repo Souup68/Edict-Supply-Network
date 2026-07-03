@@ -310,18 +310,27 @@
 
   <div class="panel">
     <div class="panel-title">Reprocessing Settings</div>
-    <div class="form-row" style="align-items:flex-end">
-      <div class="form-group">
-        <label>Efficiency %</label>
-        <input id="rp-efficiency" type="number" value="82.4" min="1" max="100" step="0.01" style="width:110px">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <label style="margin:0;white-space:nowrap">Ore eff.:</label>
+      <div style="display:flex;align-items:center;gap:4px">
+        <select id="rp-preset" onchange="applyEfficiencyPreset(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 2px;border-radius:3px;font-size:0.85rem;width:22px;cursor:pointer" title="Select a preset">
+          <option value="">▾</option>
+          <optgroup label="NPC Station (Highsec / Lowsec)">
+            <option value="0.7231">Max skills + RP-804 — 0.7231</option>
+          </optgroup>
+          <optgroup label="Athanor Refinery (Low / Null / WH)">
+            <option value="0.7563">T1 rig, max skills + RP-804 — 0.7563</option>
+            <option value="0.7945">T2 rig, max skills + RP-804 — 0.7945</option>
+          </optgroup>
+          <optgroup label="Tatara Refinery (Low / Null / WH)">
+            <option value="0.8042">T1 rig, max skills + RP-804 — 0.8042</option>
+            <option value="0.8424">T2 rig, max skills + RP-804 — 0.8424</option>
+          </optgroup>
+        </select>
+        <input id="rp-efficiency" type="number" value="0.7231" min="0.01" max="1" step="0.0001" style="width:90px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:3px;font-size:0.9rem" oninput="document.getElementById('rp-preset').value=''">
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:2px">
-        <button class="btn btn-secondary btn-sm" onclick="setEff(72.31)" title="NPC station, all skills 5, RP-804">NPC Max</button>
-        <button class="btn btn-secondary btn-sm" onclick="setEff(75.63)" title="T1 rig Athanor, all skills 5, RP-804">T1 Rig</button>
-        <button class="btn btn-secondary btn-sm" onclick="setEff(79.45)" title="T2 rig Tatara, all skills 5, RP-804">T2 Rig</button>
-      </div>
-      <p class="hint" style="margin:0;align-self:center">Max skills (all 5) + Beancounter RP-804. NPC station = 72.31%</p>
     </div>
+    <p class="hint" style="margin-top:8px">Assumes max skills (Reprocessing V, Reprocessing Efficiency V, ore-specific V). Applies to ore &amp; moon ore.</p>
   </div>
 
   <div class="panel">
@@ -498,11 +507,15 @@ function setEff(v) {
   document.getElementById('rp-efficiency').value = v;
 }
 
+function applyEfficiencyPreset(val) {
+  if (val) document.getElementById('rp-efficiency').value = val;
+}
+
 function calculateReprocess() {
   const raw = document.getElementById('rp-paste').value.trim();
   if (!raw) { toast('Nothing to calculate.'); return; }
-  const eff = parseFloat(document.getElementById('rp-efficiency').value) / 100;
-  if (isNaN(eff) || eff <= 0 || eff > 1) { toast('Invalid efficiency value.'); return; }
+  const eff = parseFloat(document.getElementById('rp-efficiency').value);
+  if (isNaN(eff) || eff <= 0 || eff > 1) { toast('Invalid efficiency value (must be 0.01 – 1.00).'); return; }
 
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   const parsed = []; // { displayName, qty, batches, leftover, oreData }
