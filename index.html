@@ -649,11 +649,16 @@ const EVE_ESI_URL = 'https://esi.evetech.net/latest';
 // Extract character ID from JWT token
 function getCharIdFromJwt(token) {
   try {
+    console.log('Decoding JWT token...');
     const parts = token.split('.');
+    console.log('Token parts:', parts.length);
     if (parts.length !== 3) throw new Error('Invalid JWT format');
     const payload = JSON.parse(atob(parts[1]));
+    console.log('JWT payload:', payload);
     const charStr = payload.sub; // e.g., "CHARACTER:EVE:90640971"
+    console.log('Character string:', charStr);
     const charId = charStr.split(':')[2];
+    console.log('Extracted character ID:', charId);
     return parseInt(charId, 10);
   } catch (e) {
     console.error('JWT decode error:', e);
