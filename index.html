@@ -738,9 +738,9 @@ async function handleEveOAuthCallback() {
     const charInfo = getCharInfoFromJwt(tokenData.access_token);
     if (!charInfo) throw new Error('Failed to extract character info from token');
     
-    sessionStorage.setItem('eve_access_token', tokenData.access_token);
-    sessionStorage.setItem('eve_char_id', charInfo.charId);
-    sessionStorage.setItem('eve_char_name', charInfo.charName);
+    localStorage.setItem('eve_access_token', tokenData.access_token);
+    localStorage.setItem('eve_char_id', charInfo.charId);
+    localStorage.setItem('eve_char_name', charInfo.charName);
     
     // Update UI to show logged-in state
     updateEveConnectUI();
@@ -756,9 +756,9 @@ async function handleEveOAuthCallback() {
 }
 
 function updateEveConnectUI() {
-  const charName = sessionStorage.getItem('eve_char_name');
-  const accessToken = sessionStorage.getItem('eve_access_token');
-  const charId = sessionStorage.getItem('eve_char_id');
+  const charName = localStorage.getItem('eve_char_name');
+  const accessToken = localStorage.getItem('eve_access_token');
+  const charId = localStorage.getItem('eve_char_id');
   
   const panel = document.querySelector('[data-eve-connect]');
   if (!panel) return;
@@ -769,7 +769,10 @@ function updateEveConnectUI() {
       <div class="panel-title">EVE Character Connected</div>
       <div style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
         <span style="color: var(--goldlt); font-weight: 600;">✓ Signed in as <strong>${charName}</strong></span>
-        <button class="btn btn-primary" onclick="refreshEveAssets()">🔄 Refresh Assets</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" onclick="refreshEveAssets()">🔄 Refresh Assets</button>
+          <button class="btn" onclick="showLogoutConfirm()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text);">Sign Out</button>
+        </div>
       </div>
     `;
   } else {
@@ -784,17 +787,88 @@ function updateEveConnectUI() {
   }
 }
 
+function signOutEve() {
+  localStorage.removeItem('eve_access_token');
+  localStorage.removeItem('eve_char_id');
+  localStorage.removeItem('eve_char_name');
+  updateEveConnectUI();
+  toast('Signed out from EVE');
+}
+
+function showLogoutConfirm() {
+  const charName = localStorage.getItem('eve_char_name');
+  
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  `;
+  
+  // Create modal dialog
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  `;
+  
+  modal.innerHTML = `
+    <h3 style="color: var(--goldlt); margin-top: 0; margin-bottom: 12px;">Sign Out</h3>
+    <p style="color: var(--text); margin: 0 0 20px 0;">Before you sign out, would you like to export your data? This ensures you have a backup of all your snapshots and minerals data.</p>
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button class="btn" onclick="this.closest('div').parentElement.parentElement.remove()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text);">Cancel</button>
+      <button class="btn btn-primary" onclick="exportJSONWithCharName(); document.querySelector('div[style*=\"position: fixed\"]')?.remove();">📥 Export & Sign Out</button>
+    </div>
+  `;
+  
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+function exportJSONWithCharName() {
+  const charName = localStorage.getItem('eve_char_name') || 'unknown';
+  const blob = new Blob([JSON.stringify(load(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${charName}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Data exported! Signing out...');
+  setTimeout(() => signOutEve(), 500);
+}
+
 async function refreshEveAssets() {
-  const token = sessionStorage.getItem('eve_access_token');
-  const charId = sessionStorage.getItem('eve_char_id');
+  const token = localStorage.getItem('eve_access_token');
+  const charId = localStorage.getItem('eve_char_id');
   
   if (!token || !charId) {
     toast('Not connected to EVE. Please sign in first.');
     return;
   }
   
-  toast('Refreshing assets from EVE...');
-  await fetchEveAssets(token, parseInt(charId, 10));
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+  
+  try {
+    await fetchEveAssets(token, parseInt(charId, 10));
+    toast('Assets updated!');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Refresh Assets';
+  }
 }
 
 async function fetchEveAssets(token, charId) {
