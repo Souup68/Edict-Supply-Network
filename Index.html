@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Souup's Mineral Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0a0d14;
+      --bg2:     #111620;
+      --bg3:     #1a2030;
+      --border:  #2a3448;
+      --gold:    #c9a227;
+      --goldlt:  #f0c840;
+      --cyan:    #4fc3f7;
+      --green:   #4caf50;
+      --red:     #ef5350;
+      --orange:  #ff9800;
+      --text:    #d0d8e8;
+      --dim:     #7a8899;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header {
+      background: linear-gradient(90deg, var(--bg2), var(--bg3));
+      border-bottom: 2px solid var(--gold);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 1.3rem; color: var(--goldlt); letter-spacing: 2px; text-transform: uppercase; }
+    header span { font-size: 0.8rem; color: var(--dim); }
+
+    nav {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex; padding: 0 20px; gap: 2px;
+    }
+    nav button {
+      padding: 11px 18px; background: none; border: none; color: var(--dim);
+      cursor: pointer; font-size: 0.85rem; border-bottom: 2px solid transparent;
+      transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+    }
+    nav button:hover { color: var(--text); }
+    nav button.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    .tab { display: none; padding: 20px 24px; }
+    .tab.active { display: block; }
+
+    .panel {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 18px; margin-bottom: 18px;
+    }
+    .panel-title {
+      font-size: 0.78rem; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--gold); margin-bottom: 14px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Mineral input grid */
+    .mineral-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+    .mineral-input { display: flex; flex-direction: column; gap: 4px; }
+    .mineral-input label { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+    .mineral-input input {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 10px; border-radius: 3px; font-size: 0.95rem;
+    }
+    .mineral-input input:focus { outline: none; border-color: var(--cyan); }
+
+    /* Buttons */
+    .btn { padding: 9px 18px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; }
+    .btn-primary { background: var(--gold); color: #000; font-weight: 700; }
+    .btn-primary:hover { background: var(--goldlt); }
+    .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+    .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+    .btn-danger:hover { background: var(--red); color: #fff; }
+    .btn-sm { padding: 4px 9px; font-size: 0.75rem; }
+    .actions { margin-top: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* Forms */
+    .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+    .form-group input, .form-group select, .form-group textarea {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 10px; border-radius: 3px; font-size: 0.9rem;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--cyan); }
+    .form-group select option { background: var(--bg3); }
+    textarea { resize: vertical; min-height: 58px; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { text-align: left; padding: 8px 12px; color: var(--gold); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg3); }
+
+    /* Status badges */
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+    .badge-pending   { background: rgba(255,152,0,.18); color: var(--orange); }
+    .badge-fulfilled { background: rgba(76,175,80,.18); color: var(--green); }
+    .badge-cancelled { background: rgba(239,83,80,.18);  color: var(--red); }
+
+    /* Charts */
+    .chart-wrap { position: relative; height: 280px; margin-bottom: 8px; }
+
+    /* Stock visual bars */
+    .stock-bars { display:flex; flex-direction:column; gap:5px; margin-bottom:4px; }
+    .sbar { display:flex; align-items:center; gap:9px; }
+    .sbar-name { width:150px; font-size:0.78rem; text-align:right; flex-shrink:0; letter-spacing:0.3px; }
+    .sbar-track { flex:1; height:15px; background:var(--bg3); border-radius:2px; overflow:hidden; cursor:default; }
+    .sbar-fill { height:100%; border-radius:2px; transition:width 0.5s ease; }
+    .sbar-num { width:100px; font-size:0.8rem; font-family:'Courier New',monospace; text-align:right; flex-shrink:0; }
+    .sbar-pend { width:80px; font-size:0.73rem; text-align:right; flex-shrink:0; }
+
+    /* Stats */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 12px; text-align: center; }
+    .stat-card .val { font-size: 1.2rem; font-weight: 600; color: var(--cyan); }
+    .stat-card .lbl { font-size: 0.72rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+    /* Supply dot */
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
+    .dot-high { background: var(--green); }
+    .dot-mid  { background: var(--orange); }
+    .dot-low  { background: var(--red); }
+    .dot-zero { background: var(--dim); }
+
+    .pos  { color: var(--green); }
+    .neg  { color: var(--red); }
+    .dim  { color: var(--dim); }
+    .mono { font-family: 'Courier New', monospace; }
+
+    .empty { text-align: center; padding: 36px; color: var(--dim); font-size: 0.88rem; }
+    .hint  { font-size: 0.8rem; color: var(--dim); margin-bottom: 12px; }
+
+    /* Trend controls */
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .controls label { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+    .controls select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 3px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: var(--bg3); border: 1px solid var(--gold);
+      color: var(--text); padding: 10px 18px; border-radius: 4px;
+      font-size: 0.88rem; opacity: 0; transition: opacity 0.3s;
+      pointer-events: none; z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+
+    @media (max-width: 580px) {
+      .mineral-grid { grid-template-columns: 1fr 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+      nav button { padding: 10px 10px; font-size: 0.78rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⛏ Souup's Mineral Tracker</h1>
+    <span id="hdr-updated">No snapshots yet</span>
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('stock',this)">📦 Stock</button>
+  <button onclick="showTab('requests',this)">📋 Requests</button>
+  <button onclick="showTab('trends',this)">📈 Trends</button>
+  <button onclick="showTab('reprocess',this)">⚗️ Reprocess</button>
+  <button onclick="showTab('data',this)">💾 Data</button>
+</nav>
+
+<!-- ══════════ STOCK TAB ══════════ -->
+<div id="tab-stock" class="tab active">
+
+  <div class="panel">
+    <div class="panel-title">Connect EVE Character</div>
+    <p class="hint">Authorize access to your character's assets to auto-populate mineral quantities. No data is stored on external servers.</p>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="initEveOAuth()">🔐 Connect with EVE SSO</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Paste from EVE Assets</div>
+    <p class="hint">Copy your minerals from the EVE assets window and paste below — quantities will fill in automatically.</p>
+    <textarea id="asset-paste" rows="6" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:3px;font-family:'Courier New',monospace;font-size:0.82rem;resize:vertical" placeholder="Paste EVE asset rows here..."></textarea>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn btn-primary" onclick="parseAssetPaste()">⬆ Import Quantities</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('asset-paste').value='';">Clear</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Record Stock Snapshot</div>
+    <div class="mineral-grid" id="stock-inputs"></div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveSnapshot()">Save Snapshot</button>
+      <button class="btn btn-secondary" onclick="loadLast()">Load Last Values</button>
+      <button class="btn btn-secondary" onclick="resetInputs()">Reset Values</button>
+      <button class="btn btn-secondary" id="btn-fetch-prices" onclick="fetchPrices()">💹 Fetch Jita Prices</button>
+      <span class="hint" id="price-status" style="margin:0"></span>
+      <span class="hint" id="snap-count" style="margin:0"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="deficit-panel"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Current Stock Levels</span>
+      <button class="btn btn-secondary btn-sm" onclick="copyForDiscord()">📋 Copy for Discord</button>
+      <button class="btn btn-secondary btn-sm" onclick="copyForJanice()">🔍 Copy for Janice</button>
+    </div>
+    <div id="stock-display"><div class="empty">No snapshots yet. Enter your levels above and save.</div></div>
+  </div>
+
+</div>
+
+<!-- ══════════ REQUESTS TAB ══════════ -->
+<div id="tab-requests" class="tab">
+
+  <div class="panel">
+    <div class="panel-title">Log Incoming Request</div>
+    <div class="form-row" style="margin-bottom:12px">
+      <div class="form-group">
+        <label>Player Name</label>
+        <input id="r-player" type="text" placeholder="e.g. Fredd_Pilot">
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input id="r-date" type="date">
+      </div>
+    </div>
+    <div class="panel-title" style="margin-bottom:10px;font-size:0.72rem">Quantities Requested (leave blank if not needed)</div>
+    <div class="mineral-grid" id="req-mineral-inputs"></div>
+    <div class="form-row" style="margin-top:12px">
+      <div class="form-group" style="grid-column: 1 / -1">
+        <label>Notes (optional)</label>
+        <textarea id="r-notes" placeholder="e.g. Partial fill okay, pending Discord reply..."></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="addRequest()">Log Request</button>
+      <button class="btn btn-secondary" onclick="clearReqForm()">Clear</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Request History</div>
+    <div id="req-table"><div class="empty">No requests logged yet.</div></div>
+  </div>
+
+</div>
+
+<!-- ══════════ TRENDS TAB ══════════ -->
+<div id="tab-trends" class="tab">
+
+  <div class="panel">
+    <div class="panel-title">Stock Level Over Time</div>
+    <div class="controls">
+      <label>Mineral:</label>
+      <select id="t-mineral" onchange="drawTrend()"></select>
+      <label>Show last:</label>
+      <select id="t-range" onchange="drawTrend()">
+        <option value="10">10 snapshots</option>
+        <option value="20">20 snapshots</option>
+        <option value="50">50 snapshots</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Request Volume by Mineral</div>
+    <div class="chart-wrap" style="height:220px"><canvas id="demand-chart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Request Count by Mineral</div>
+    <p class="hint">How many separate requests have included each mineral, regardless of quantity.</p>
+    <div class="chart-wrap" style="height:220px"><canvas id="count-chart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Demand vs Supply Summary</div>
+    <div id="demand-summary"><div class="empty">No data yet.</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Portfolio Value Over Time</div>
+    <p class="hint">Total Jita buy value of your stock at each snapshot (only shown for snapshots where prices were fetched).</p>
+    <div class="chart-wrap"><canvas id="portfolio-chart"></canvas></div>
+  </div>
+
+</div>
+
+<!-- ══════════ DATA TAB ══════════ -->
+<!-- ══════════ REPROCESS TAB ══════════ -->
+<div id="tab-reprocess" class="tab">
+
+  <div class="panel">
+    <div class="panel-title">Reprocessing Settings</div>
+    <div class="form-row" style="align-items:flex-end">
+      <div class="form-group">
+        <label>Efficiency %</label>
+        <input id="rp-efficiency" type="number" value="82.4" min="1" max="100" step="0.01" style="width:110px">
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:2px">
+        <button class="btn btn-secondary btn-sm" onclick="setEff(72.31)" title="NPC station, all skills 5, RP-804">NPC Max</button>
+        <button class="btn btn-secondary btn-sm" onclick="setEff(75.63)" title="T1 rig Athanor, all skills 5, RP-804">T1 Rig</button>
+        <button class="btn btn-secondary btn-sm" onclick="setEff(79.45)" title="T2 rig Tatara, all skills 5, RP-804">T2 Rig</button>
+      </div>
+      <p class="hint" style="margin:0;align-self:center">Max skills (all 5) + Beancounter RP-804. NPC station = 72.31%</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Paste Ore from EVE Assets</div>
+    <p class="hint">Copy ore rows from your EVE assets window and paste below.</p>
+    <textarea id="rp-paste" rows="8" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:3px;font-family:'Courier New',monospace;font-size:0.82rem;resize:vertical" placeholder="Compressed Scordite III-Grade&#9;198196&#10;Compressed Pyroxeres II-Grade&#9;357650&#10;Compressed Veldspar&#9;24852"></textarea>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn btn-primary" onclick="calculateReprocess()">⚗️ Calculate Reprocess</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('rp-paste').value='';document.getElementById('rp-results').innerHTML=''">Clear</button>
+    </div>
+  </div>
+
+  <div id="rp-results"></div>
+
+</div>
+
+<div id="tab-data" class="tab">
+
+  <div class="panel">
+    <div class="panel-title">Backup &amp; Restore</div>
+    <p class="hint">Export your data as a JSON file to back it up. Import a previous backup to restore it.</p>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="exportJSON()">⬇ Export JSON</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('imp-file').click()">⬆ Import JSON</button>
+      <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Snapshot History</div>
+    <div id="snap-history"><div class="empty">No snapshots.</div></div>
+  </div>
+
+  <div class="panel" style="border-color:#5a2a2a">
+    <div class="panel-title" style="color:var(--red)">Danger Zone</div>
+    <p class="hint">Permanently deletes all snapshots and requests. Cannot be undone.</p>
+    <button class="btn btn-danger" onclick="nukeAll()">Delete All Data</button>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Ore reprocessing data ─────────────────────────────────────────────────────
+// Yields per 100 compressed units (1 batch) at 100% efficiency — from EVE SDE type_materials.
+// Batch size is always 100. Leftover units (qty % 100) are returned unused.
+// Keys are lowercase ore name WITHOUT "Compressed " prefix, INCLUDING grade suffix.
+const ORE_DATA = {
+  // ── Hi-sec ores ─────────────────────────────────────────────────────────────
+  'veldspar':                   { Tritanium: 400 },
+  'veldspar ii-grade':          { Tritanium: 420 },
+  'veldspar iii-grade':         { Tritanium: 440 },
+
+  'scordite':                   { Tritanium: 150, Pyerite: 110 },
+  'scordite ii-grade':          { Tritanium: 158, Pyerite: 114 },  // exact SDE
+  'scordite iii-grade':         { Tritanium: 165, Pyerite: 119 },  // exact SDE
+
+  'pyroxeres':                  { Pyerite: 90, Mexallon: 30 },
+  'pyroxeres ii-grade':         { Pyerite: 95, Mexallon: 32 },     // exact SDE
+  'pyroxeres iii-grade':        { Pyerite: 99, Mexallon: 33 },
+
+  'plagioclase':                { Tritanium: 175, Mexallon: 70 },
+  'plagioclase ii-grade':       { Tritanium: 183, Mexallon: 73 },
+  'plagioclase iii-grade':      { Tritanium: 192, Mexallon: 77 },
+
+  // ── Lo-sec ores ─────────────────────────────────────────────────────────────
+  'omber':                      { Pyerite: 90, Isogen: 75 },
+  'omber ii-grade':             { Pyerite: 94, Isogen: 78 },
+  'omber iii-grade':            { Pyerite: 99, Isogen: 82 },
+
+  'kernite':                    { Mexallon: 60, Isogen: 120 },
+  'kernite ii-grade':           { Mexallon: 63, Isogen: 126 },
+  'kernite iii-grade':          { Mexallon: 66, Isogen: 132 },
+
+  'jaspet':                     { Mexallon: 150, Nocxium: 50 },
+  'jaspet ii-grade':            { Mexallon: 157, Nocxium: 52 },
+  'jaspet iii-grade':           { Mexallon: 165, Nocxium: 55 },
+
+  'hemorphite':                 { Isogen: 240, Nocxium: 90 },
+  'hemorphite ii-grade':        { Isogen: 252, Nocxium: 94 },
+  'hemorphite iii-grade':       { Isogen: 264, Nocxium: 99 },
+
+  'hedbergite':                 { Pyerite: 450, Nocxium: 120 },
+  'hedbergite ii-grade':        { Pyerite: 472, Nocxium: 126 },
+  'hedbergite iii-grade':       { Pyerite: 495, Nocxium: 132 },
+
+  // ── Null-sec / WH ores ──────────────────────────────────────────────────────
+  'gneiss':                     { Pyerite: 2000, Mexallon: 1500, Isogen: 800 },
+  'gneiss ii-grade':            { Pyerite: 2100, Mexallon: 1575, Isogen: 840 },
+  'gneiss iii-grade':           { Pyerite: 2200, Mexallon: 1650, Isogen: 880 },
+  'gneiss iv-grade':            { Pyerite: 2300, Mexallon: 1725, Isogen: 920 },
+
+  'dark ochre':                 { Mexallon: 1360, Isogen: 1200, Nocxium: 320 },
+  'dark ochre ii-grade':        { Mexallon: 1428, Isogen: 1260, Nocxium: 336 },
+  'dark ochre iii-grade':       { Mexallon: 1496, Isogen: 1320, Nocxium: 352 },
+  'dark ochre iv-grade':        { Mexallon: 1564, Isogen: 1380, Nocxium: 368 },
+
+  'crokite':                    { Pyerite: 800, Mexallon: 2000, Nocxium: 800 },
+  'crokite ii-grade':           { Pyerite: 840, Mexallon: 2100, Nocxium: 840 },
+  'crokite iii-grade':          { Pyerite: 880, Mexallon: 2200, Nocxium: 880 },
+
+  'bistot':                     { Pyerite: 3200, Mexallon: 1200, Zydrine: 160 },
+  'bistot ii-grade':            { Pyerite: 3360, Mexallon: 1260, Zydrine: 168 },
+  'bistot iii-grade':           { Pyerite: 3520, Mexallon: 1320, Zydrine: 176 },
+
+  'arkonor':                    { Pyerite: 3200, Mexallon: 1200, Megacyte: 120 },
+  'arkonor ii-grade':           { Pyerite: 3360, Mexallon: 1260, Megacyte: 126 },
+  'arkonor iii-grade':          { Pyerite: 3520, Mexallon: 1320, Megacyte: 132 },
+
+  'spodumain':                  { Tritanium: 48000, Isogen: 3000, Nocxium: 160, Zydrine: 80, Megacyte: 40 },
+  'spodumain ii-grade':         { Tritanium: 50400, Isogen: 3150, Nocxium: 168, Zydrine: 84, Megacyte: 42 },
+  'spodumain iii-grade':        { Tritanium: 52800, Isogen: 3300, Nocxium: 176, Zydrine: 88, Megacyte: 44 },
+  'spodumain iv-grade':         { Tritanium: 55200, Isogen: 3450, Nocxium: 184, Zydrine: 92, Megacyte: 46 },
+
+  // ── Pochven (Triglavian / Abyssal) ores ─────────────────────────────────────
+  'bezdnacine':                 { Tritanium: 40000, Isogen: 4800, Megacyte: 128 },
+  'bezdnacine ii-grade':        { Tritanium: 42000, Isogen: 5040, Megacyte: 134 },
+  'bezdnacine iii-grade':       { Tritanium: 44000, Isogen: 5280, Megacyte: 140 },
+  'bezdnacine iv-grade':        { Tritanium: 46000, Isogen: 5520, Megacyte: 147 },
+
+  // ── Deep Space Survey ores (A0 / YC124 additions) ───────────────────────────
+  // Mordunium — pure Pyerite ore — from EVE SDE type_materials
+  'mordunium':                  { Pyerite: 97 },
+  'mordunium ii-grade':         { Pyerite: 101 },
+  'mordunium iii-grade':        { Pyerite: 107 },
+  'mordunium iv-grade':         { Pyerite: 112 },
+
+  // Ytirium — pure Isogen ore — from EVE SDE type_materials
+  'ytirium':                    { Isogen: 240 },
+  'ytirium ii-grade':           { Isogen: 252 },
+  'ytirium iii-grade':          { Isogen: 264 },
+  'ytirium iv-grade':           { Isogen: 276 },
+
+  // ── R4 Moon ores (highsec) ───────────────────────────────────────────────────
+  // Naming: standard / Brimful (+15%) / Glistening (×2) — NOT II/III-Grade
+  'zeolites':                   { Pyerite: 8000,  Mexallon: 400, 'Atmospheric Gases': 65 },
+  'brimful zeolites':           { Pyerite: 9200,  Mexallon: 460, 'Atmospheric Gases': 75 },
+  'glistening zeolites':        { Pyerite: 16000, Mexallon: 800, 'Atmospheric Gases': 130 },
+
+  'sylvite':                    { Pyerite: 4000,  Mexallon: 400, 'Evaporite Deposits': 65 },
+  'brimful sylvite':            { Pyerite: 4600,  Mexallon: 460, 'Evaporite Deposits': 75 },
+  'glistening sylvite':         { Pyerite: 8000,  Mexallon: 800, 'Evaporite Deposits': 130 },
+
+  'bitumens':                   { Pyerite: 6000,  Mexallon: 400, Hydrocarbons: 65 },
+  'brimful bitumens':           { Pyerite: 6900,  Mexallon: 460, Hydrocarbons: 75 },
+  'glistening bitumens':        { Pyerite: 12000, Mexallon: 800, Hydrocarbons: 130 },
+
+  'coesite':                    { Pyerite: 2000,  Mexallon: 400, Silicates: 65 },
+  'brimful coesite':            { Pyerite: 2300,  Mexallon: 460, Silicates: 75 },
+  'glistening coesite':         { Pyerite: 4000,  Mexallon: 800, Silicates: 130 },
+};
+
+// Legacy ore names (pre-revamp) mapped to current grade keys
+const LEGACY_ORE_NAMES = {
+  'concentrated veldspar': 'veldspar ii-grade',    'dense veldspar': 'veldspar iii-grade',
+  'condensed scordite': 'scordite ii-grade',        'massive scordite': 'scordite iii-grade',
+  'solid pyroxeres': 'pyroxeres ii-grade',          'viscous pyroxeres': 'pyroxeres iii-grade',
+  'rich plagioclase': 'plagioclase ii-grade',       'azure plagioclase': 'plagioclase iii-grade',
+  'silvery omber': 'omber ii-grade',                'golden omber': 'omber iii-grade',
+  'luminous kernite': 'kernite ii-grade',           'fiery kernite': 'kernite iii-grade',
+  'pure jaspet': 'jaspet ii-grade',                 'pristine jaspet': 'jaspet iii-grade',
+  'vivid hemorphite': 'hemorphite ii-grade',        'radiant hemorphite': 'hemorphite iii-grade',
+  'vitric hedbergite': 'hedbergite ii-grade',       'glazed hedbergite': 'hedbergite iii-grade',
+  'iridescent gneiss': 'gneiss ii-grade',           'prismatic gneiss': 'gneiss iii-grade',
+  'onyx ochre': 'dark ochre ii-grade',              'obsidian ochre': 'dark ochre iii-grade',
+  'sharp crokite': 'crokite ii-grade',              'crystalline crokite': 'crokite iii-grade',
+  'triclinic bistot': 'bistot ii-grade',            'monoclinic bistot': 'bistot iii-grade',
+  'crimson arkonor': 'arkonor ii-grade',            'prime arkonor': 'arkonor iii-grade',
+  'bright spodumain': 'spodumain ii-grade',         'gleaming spodumain': 'spodumain iii-grade',
+};
+
+function setEff(v) {
+  document.getElementById('rp-efficiency').value = v;
+}
+
+function calculateReprocess() {
+  const raw = document.getElementById('rp-paste').value.trim();
+  if (!raw) { toast('Nothing to calculate.'); return; }
+  const eff = parseFloat(document.getElementById('rp-efficiency').value) / 100;
+  if (isNaN(eff) || eff <= 0 || eff > 1) { toast('Invalid efficiency value.'); return; }
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const parsed = []; // { displayName, qty, batches, leftover, oreData }
+  const unknown = [];
+
+  lines.forEach(line => {
+    let name, qty;
+    if (line.includes('\t')) {
+      const parts = line.split('\t');
+      if (parts.length < 2) return;
+      name = parts[0].trim();
+      qty = Math.floor(parseFloat(parts[1].replace(/,/g, '')));
+    } else {
+      const m = line.match(/^(.+?)\s+([\d,]+)\s*$/);
+      if (!m) return;
+      name = m[1].trim();
+      qty = Math.floor(parseFloat(m[2].replace(/,/g, '')));
+    }
+    if (!qty || isNaN(qty)) return;
+
+    // Strip 'Compressed ' prefix, then normalise to lowercase for lookup
+    const stripped = name.replace(/^Compressed\s+/i, '').trim();
+    const strippedLower = stripped.toLowerCase();
+
+    // Resolve legacy names first, then direct lookup
+    const lookupKey = LEGACY_ORE_NAMES[strippedLower] ?? strippedLower;
+    const oreData = ORE_DATA[lookupKey];
+    if (!oreData) { unknown.push(name); return; }
+
+    // Batches of 100; leftover units are returned unused
+    const batches = Math.floor(qty / 100);
+    const leftover = qty % 100;
+    parsed.push({ displayName: name, qty, batches, leftover, oreData });
+  });
+
+  if (!parsed.length) {
+    document.getElementById('rp-results').innerHTML =
+      `<div class="panel"><div class="empty">No recognised ores found.${unknown.length ? ' Unrecognised: ' + unknown.join(', ') : ''}</div></div>`;
+    return;
+  }
+
+  // Calculate total minerals
+  const totals = {};
+  MINERALS.forEach(m => totals[m] = 0);
+
+  parsed.forEach(({ batches, oreData }) => {
+    MINERALS.forEach(m => {
+      const baseYield = oreData[m] ?? 0;
+      if (baseYield) totals[m] += Math.floor(batches * baseYield * eff);
+    });
+  });
+
+  // Active mineral columns (any non-zero in totals)
+  const activeMins = MINERALS.filter(m => totals[m] > 0);
+  const prices = Object.keys(livePrices).length ? livePrices : {};
+  const hasPrices = activeMins.some(m => prices[m]);
+
+  // Ore breakdown table rows
+  const oreTableRows = parsed.map(({ displayName, qty, batches, leftover, oreData }) => {
+    const cols = activeMins.map(m => {
+      const baseYield = oreData[m] ?? 0;
+      if (!baseYield) return '<td class="dim" style="text-align:center">—</td>';
+      const amount = Math.floor(batches * baseYield * eff);
+      return `<td class="mono">${fmt(amount)}</td>`;
+    }).join('');
+    const leftoverHtml = leftover > 0 ? ` <span style="color:var(--dim);font-size:0.8em">(+${leftover} unused)</span>` : '';
+    return `<tr><td>${displayName}${leftoverHtml}</td><td class="mono">${fmt(qty)}</td>${cols}</tr>`;
+  }).join('');
+
+  const minHeaders = activeMins.map(m =>
+    `<th style="color:${COLORS[MINERALS.indexOf(m)]}">${m}</th>`).join('');
+
+  // Totals row
+  let totalIsk = 0;
+  const totalCols = activeMins.map(m => {
+    const isk = hasPrices && prices[m] ? totals[m] * prices[m] : 0;
+    totalIsk += isk;
+    return `<td class="mono" style="font-weight:700">${fmt(totals[m])}</td>`;
+  }).join('');
+
+  // Mineral summary cards
+  const summaryCards = activeMins.map(m => {
+    const iskVal = hasPrices && prices[m] ? totals[m] * prices[m] : null;
+    return `<div class="stat-card">
+      <div class="val" style="color:${COLORS[MINERALS.indexOf(m)]}">${fmtShort(totals[m])}</div>
+      <div class="lbl">${m}</div>
+      ${iskVal !== null ? `<div style="font-size:0.72rem;color:var(--gold);margin-top:2px">${fmtIsk(iskVal)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const iskTotalHtml = hasPrices && totalIsk > 0
+    ? `<div style="text-align:right;margin-top:10px;font-size:1rem;color:var(--goldlt);font-weight:700">Total Value: ${fmtIsk(totalIsk)}</div>` : '';
+  const unknownHtml = unknown.length
+    ? `<p class="hint" style="color:var(--orange);margin-top:8px">⚠ Skipped (not recognised): ${unknown.join(', ')}</p>` : '';
+  const priceNote = !hasPrices
+    ? `<p class="hint" style="color:var(--dim);margin-top:6px">Fetch Jita prices on the Stock tab to see ISK values.</p>` : '';
+
+  document.getElementById('rp-results').innerHTML = `
+    <div class="panel">
+      <div class="panel-title">Mineral Output Summary — ${(eff*100).toFixed(2)}% efficiency</div>
+      <div class="stat-grid">${summaryCards}</div>
+      ${iskTotalHtml}${priceNote}${unknownHtml}
+    </div>
+    <div class="panel">
+      <div class="panel-title">Breakdown by Ore</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Ore</th><th>Units</th>${minHeaders}</tr></thead>
+          <tbody>
+            ${oreTableRows}
+            <tr style="border-top:2px solid var(--border)">
+              <td style="color:var(--gold);font-weight:700">TOTAL</td>
+              <td></td>${totalCols}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const MINERALS = [
+  'Tritanium','Pyerite','Mexallon','Isogen','Nocxium','Zydrine','Megacyte',
+  'Atmospheric Gases','Evaporite Deposits','Hydrocarbons','Silicates'
+];
+const MINERAL_IDS = {
+  'Tritanium': 34, 'Pyerite': 35, 'Mexallon': 36, 'Isogen': 37,
+  'Nocxium': 38, 'Zydrine': 39, 'Megacyte': 40,
+  'Atmospheric Gases': 16634, 'Evaporite Deposits': 16635,
+  'Hydrocarbons': 16633, 'Silicates': 16636
+};
+const COLORS = [
+  '#4fc3f7','#c9a227','#4caf50','#ef5350','#ff9800',
+  '#ab47bc','#26c6da','#66bb6a','#ffa726','#ec407a','#7e57c2'
+];
+const KEY = 'souup_mineral_tracker';
+
+// ── EVE OAuth2 PKCE ────────────────────────────────────────────────────────────
+const EVE_CLIENT_ID = '3c37f79a01f146d6899129365e68b107';
+const EVE_AUTH_URL = 'https://login.eveonline.com/v2/oauth/authorize';
+const EVE_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
+const EVE_ESI_URL = 'https://esi.evetech.net/latest';
+
+// PKCE helpers
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let result = '';
+  for (let i = 0; i < length; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+  return result;
+}
+
+async function generateCodeChallenge(codeVerifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function initEveOAuth() {
+  const codeVerifier = generateRandomString(64);
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  const state = generateRandomString(32);
+  
+  sessionStorage.setItem('eve_state', state);
+  sessionStorage.setItem('eve_code_verifier', codeVerifier);
+  
+  const redirectUri = window.location.href.split('?')[0].split('#')[0];
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: EVE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: 'esi-assets.read_assets.v1',
+    state: state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  });
+  
+  window.location.href = `${EVE_AUTH_URL}?${params.toString()}`;
+}
+
+async function handleEveOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  
+  if (!code) return;
+  
+  const savedState = sessionStorage.getItem('eve_state');
+  if (state !== savedState) {
+    toast('OAuth state mismatch — possible security issue.');
+    return;
+  }
+  
+  const codeVerifier = sessionStorage.getItem('eve_code_verifier');
+  if (!codeVerifier) {
+    toast('Code verifier not found.');
+    return;
+  }
+  
+  try {
+    const redirectUri = window.location.href.split('?')[0].split('#')[0];
+    const tokenRes = await fetch(EVE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: EVE_CLIENT_ID,
+        code: code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
+      })
+    });
+    
+    if (!tokenRes.ok) throw new Error('Token exchange failed');
+    const tokenData = await tokenRes.json();
+    
+    sessionStorage.setItem('eve_access_token', tokenData.access_token);
+    sessionStorage.setItem('eve_char_id', tokenData.character_id);
+    
+    // Clean up URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    toast('Connected to EVE! Fetching assets...');
+    await fetchEveAssets(tokenData.access_token, tokenData.character_id);
+  } catch (e) {
+    toast('OAuth callback failed: ' + e.message);
+  }
+}
+
+async function fetchEveAssets(token, charId) {
+  try {
+    const res = await fetch(`${EVE_ESI_URL}/characters/${charId}/assets/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
+    const assets = await res.json();
+    
+    const mineralMap = {};
+    const mineralIds = new Set(Object.values(MINERAL_IDS));
+    
+    assets.forEach(item => {
+      if (mineralIds.has(item.type_id)) {
+        const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
+        if (mineralName) {
+          mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
+        }
+      }
+    });
+    
+    Object.entries(mineralMap).forEach(([mineral, qty]) => {
+      const el = document.getElementById('inp-' + slug(mineral));
+      if (el) el.value = qty;
+    });
+    
+    toast(`Loaded ${Object.keys(mineralMap).length} mineral${Object.keys(mineralMap).length > 1 ? 's' : ''} from EVE assets!`);
+  } catch (e) {
+    toast('Failed to fetch assets: ' + e.message);
+  }
+}
+
+// ── Live price cache (session only, not persisted) ─────────────────────────────
+let livePrices = {}; // { mineralName: jitaBuyMax }
+
+// ── Storage ────────────────────────────────────────────────────────────────────
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY) || 'null') || { snapshots: [], requests: [] }; }
+  catch { return { snapshots: [], requests: [] }; }
+}
+function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function showTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'trends')   { setTimeout(() => { drawTrend(); drawDemand(); drawCount(); drawSummary(); drawPortfolio(); }, 40); }
+  if (name === 'data')     renderSnapHistory();
+}
+
+// ── Build dynamic elements ─────────────────────────────────────────────────────
+function parseAssetPaste() {
+  const raw = document.getElementById('asset-paste').value;
+  if (!raw.trim()) { toast('Nothing to parse.'); return; }
+
+  const parsed = {};
+  raw.split('\n').forEach(line => {
+    const parts = line.split('\t');
+    if (parts.length < 2) return;
+    const name = parts[0].trim();
+    const qtyStr = parts[1].trim().replace(/,/g, '');
+    const qty = parseFloat(qtyStr);
+    if (!name || isNaN(qty)) return;
+    // Case-insensitive match against our mineral list
+    const match = MINERALS.find(m => m.toLowerCase() === name.toLowerCase());
+    if (match) parsed[match] = qty;
+  });
+
+  const found = Object.keys(parsed);
+  if (!found.length) { toast('No matching minerals found in pasted text.'); return; }
+
+  found.forEach(m => {
+    const el = document.getElementById('inp-' + slug(m));
+    if (el) el.value = parsed[m];
+  });
+
+  document.getElementById('asset-paste').value = '';
+  toast(`Imported ${found.length} mineral${found.length > 1 ? 's' : ''} — review and save snapshot.`);
+}
+
+function buildInputs() {
+  document.getElementById('stock-inputs').innerHTML = MINERALS.map(m => `
+    <div class="mineral-input">
+      <label>${m}</label>
+      <input type="number" id="inp-${slug(m)}" placeholder="0" min="0">
+    </div>`).join('');
+}
+function buildSelects() {
+  const opts = MINERALS.map(m => `<option value="${m}">${m}</option>`).join('');
+  document.getElementById('t-mineral').innerHTML = opts;
+}
+function buildReqInputs() {
+  document.getElementById('req-mineral-inputs').innerHTML = MINERALS.map(m => `
+    <div class="mineral-input">
+      <label>${m}</label>
+      <input type="text" inputmode="numeric" id="req-${slug(m)}" placeholder="0" oninput="fmtCommaInput(this)">
+    </div>`).join('');
+}
+function fmtCommaInput(el) {
+  const raw = el.value.replace(/[^0-9]/g, '');
+  el.value = raw ? Number(raw).toLocaleString('en-US') : '';
+}
+function slug(m) { return m.replace(/\s+/g,'_'); }
+
+// ── Snapshots ──────────────────────────────────────────────────────────────────
+function saveSnapshot() {
+  const d = load();
+  const stocks = {};
+  MINERALS.forEach(m => { stocks[m] = parseFloat(document.getElementById('inp-' + slug(m)).value) || 0; });
+  const snap = { id: Date.now(), date: new Date().toISOString(), stocks };
+  if (Object.keys(livePrices).length) snap.prices = { ...livePrices };
+  d.snapshots.push(snap);
+  save(d);
+  toast('Snapshot saved! 💾 Remember to export for backup.');
+  renderStock();
+  updateHeader();
+}
+
+function copyForJanice() {
+  const d = load();
+  if (!d.snapshots.length) { toast('No stock data to copy.'); return; }
+  const last = d.snapshots[d.snapshots.length - 1];
+
+  const lines = MINERALS
+    .filter(m => (last.stocks[m] ?? 0) > 0)
+    .map(m => `${m} ${Math.round(last.stocks[m])}`);
+
+  if (!lines.length) { toast('All stock levels are zero.'); return; }
+
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    toast('Copied for Janice — paste into the appraisal box!');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copied for Janice — paste into the appraisal box!');
+  });
+}
+
+function copyForDiscord() {
+  const d = load();
+  if (!d.snapshots.length) { toast('No stock data to copy.'); return; }
+  const last = d.snapshots[d.snapshots.length - 1];
+
+  const pad = (str, len) => str + ' '.repeat(Math.max(0, len - str.length));
+  const labelLen = Math.max(...MINERALS.map(m => m.length));
+  const prices = Object.keys(livePrices).length ? livePrices : (last.prices || {});
+  const hasPrices = Object.keys(prices).length > 0;
+  let totalIsk = 0;
+
+  const lines = MINERALS.map(m => {
+    const qty = last.stocks[m] ?? 0;
+    const qtyStr = qty > 0 ? fmt(qty) : '0';
+    const prefix = qty > 0 ? '+' : '-';
+    let iskPart = '';
+    if (hasPrices && prices[m] && qty > 0) {
+      const isk = qty * prices[m];
+      totalIsk += isk;
+      iskPart = `   (${fmtIsk(isk)})`;
+    }
+    return `${prefix} ${pad(m, labelLen)}   ${pad(qtyStr, 16)}${iskPart}`;
+  });
+
+  const totalLine = hasPrices && totalIsk > 0
+    ? `\n= ${'Total'.padEnd(labelLen)}   ${pad('', 16)}${fmtIsk(totalIsk)}` : '';
+  const date = new Date(last.date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  const text = `\`\`\`diff\n— Stock levels as of ${date} —\n\n${lines.join('\n')}${totalLine}\n\`\`\``;
+
+  navigator.clipboard.writeText(text).then(() => {
+    toast('Copied to clipboard — paste into Discord!');
+  }).catch(() => {
+    // Fallback for browsers that block clipboard
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copied to clipboard — paste into Discord!');
+  });
+}
+
+async function fetchPrices() {
+  const btn = document.getElementById('btn-fetch-prices');
+  const status = document.getElementById('price-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+  status.textContent = '';
+  const ids = MINERALS.map(m => MINERAL_IDS[m]).join(',');
+  const url = `https://market.fuzzwork.co.uk/aggregates/?region=10000002&types=${ids}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const data = await res.json();
+    livePrices = {};
+    MINERALS.forEach(m => {
+      const id = String(MINERAL_IDS[m]);
+      if (data[id]) livePrices[m] = parseFloat(data[id].buy.max);
+    });
+    const time = new Date().toLocaleTimeString();
+    status.textContent = `Prices fetched at ${time} (Jita best buy)`;
+    status.style.color = 'var(--green)';
+    renderStock();
+    toast('Jita prices loaded!');
+  } catch (e) {
+    status.textContent = 'Failed to fetch prices — check connection.';
+    status.style.color = 'var(--red)';
+    toast('Price fetch failed.');
+  }
+  btn.disabled = false;
+  btn.textContent = '💹 Fetch Jita Prices';
+}
+
+function resetInputs() {
+  MINERALS.forEach(m => {
+    const el = document.getElementById('inp-' + slug(m));
+    if (el) el.value = '';
+  });
+  toast('Values cleared.');
+}
+
+function loadLast() {
+  const d = load();
+  if (!d.snapshots.length) { toast('No snapshots yet.'); return; }
+  const last = d.snapshots[d.snapshots.length - 1];
+  MINERALS.forEach(m => {
+    const el = document.getElementById('inp-' + slug(m));
+    if (el) el.value = last.stocks[m] ?? 0;
+  });
+  toast('Last snapshot loaded into form.');
+}
+
+function renderStock() {
+  const d = load();
+  const wrap = document.getElementById('stock-display');
+  if (!d.snapshots.length) {
+    wrap.innerHTML = '<div class="empty">No snapshots yet.</div>';
+    return;
+  }
+  const last = d.snapshots[d.snapshots.length - 1];
+  const prev = d.snapshots.length > 1 ? d.snapshots[d.snapshots.length - 2] : null;
+
+  // Pending demand per mineral
+  const pending = {};
+  MINERALS.forEach(m => pending[m] = 0);
+  d.requests.filter(r => r.status === 'pending').forEach(r => {
+    if (r.minerals) {
+      Object.entries(r.minerals).forEach(([m, q]) => { if (m in pending) pending[m] += q; });
+    } else if (r.mineral in pending) {
+      pending[r.mineral] += r.quantity;
+    }
+  });
+
+  const prices = Object.keys(livePrices).length ? livePrices : (last.prices || {});
+  const hasPrices = Object.keys(prices).length > 0;
+  let totalIsk = 0;
+
+  const rows = MINERALS.map(m => {
+    const qty  = last.stocks[m] ?? 0;
+    const prev_qty = prev ? (prev.stocks[m] ?? 0) : null;
+    const diff = prev_qty !== null ? qty - prev_qty : null;
+    const pend = pending[m];
+    const after = qty - pend;
+
+    let dotCls = 'dot-zero';
+    if (qty > 0) dotCls = qty > 5000000 ? 'dot-high' : qty > 500000 ? 'dot-mid' : 'dot-low';
+
+    let diffHtml = '<span class="dim">—</span>';
+    if (diff !== null) {
+      if (diff > 0) diffHtml = `<span class="pos">▲ ${fmt(diff)}</span>`;
+      else if (diff < 0) diffHtml = `<span class="neg">▼ ${fmt(Math.abs(diff))}</span>`;
+    }
+
+    const pendHtml = pend > 0 ? `<span class="neg">−${fmt(pend)}</span>` : '<span class="dim">—</span>';
+    const afterHtml = pend > 0
+      ? `<span class="${after < 0 ? 'neg' : 'pos'}">${fmt(after)}</span>`
+      : '<span class="dim">—</span>';
+
+    let iskHtml = '<span class="dim">—</span>';
+    if (hasPrices && prices[m] && qty > 0) {
+      const isk = qty * prices[m];
+      totalIsk += isk;
+      iskHtml = `<span style="color:var(--gold)">${fmtIsk(isk)}</span>`;
+    }
+
+    return `<tr>
+      <td><span class="dot ${dotCls}"></span>${m}</td>
+      <td class="mono">${fmt(qty)}</td>
+      <td>${diffHtml}</td>
+      <td>${pendHtml}</td>
+      <td>${afterHtml}</td>
+      <td>${iskHtml}</td>
+    </tr>`;
+  }).join('');
+
+  const priceNote = hasPrices
+    ? (Object.keys(livePrices).length ? ' &nbsp;|&nbsp; <span style="color:var(--green)">Live prices loaded</span>' : ' &nbsp;|&nbsp; <span style="color:var(--dim)">Prices from snapshot</span>')
+    : ' &nbsp;|&nbsp; <span style="color:var(--dim)">No prices — click Fetch Jita Prices</span>';
+  const totalRow = hasPrices && totalIsk > 0
+    ? `<tr style="border-top:2px solid var(--border)"><td colspan="5" style="text-align:right;color:var(--dim);font-size:0.8rem;padding-right:8px">Total Portfolio Value</td><td style="color:var(--goldlt);font-weight:700">${fmtIsk(totalIsk)}</td></tr>`
+    : '';
+
+  // ── Deficit panel ────────────────────────────────────────────────────────
+  const deficitEl = document.getElementById('deficit-panel');
+  if (deficitEl) {
+    const pendingMins = MINERALS.filter(m => pending[m] > 0);
+    if (!pendingMins.length) {
+      deficitEl.innerHTML = '';
+    } else {
+      const shortMins = pendingMins.filter(m => (last.stocks[m] ?? 0) - pending[m] < 0);
+      const coveredMins = pendingMins.filter(m => (last.stocks[m] ?? 0) - pending[m] >= 0);
+      const shortCount = shortMins.length;
+      const headline = shortCount === 0
+        ? `<span style="color:var(--green)">✔ All pending orders covered by current stock</span>`
+        : `<span style="color:var(--red)">⚠ ${shortCount} mineral${shortCount > 1 ? 's' : ''} short for pending orders</span>`;
+
+      let deficitIsk = 0;
+      const cards = pendingMins.map(m => {
+        const stock = last.stocks[m] ?? 0;
+        const need = pending[m];
+        const diff = stock - need;
+        const isShort = diff < 0;
+        const cardColor = isShort ? 'var(--red)' : 'var(--green)';
+        const diffLabel = isShort ? `SHORT ${fmt(Math.abs(diff))}` : `+${fmt(diff)} surplus`;
+        if (isShort && hasPrices && prices[m]) deficitIsk += Math.abs(diff) * prices[m];
+        return `<div style="background:var(--bg3);border:1px solid ${cardColor}33;border-left:3px solid ${cardColor};border-radius:4px;padding:8px 12px;min-width:160px">
+          <div style="font-size:0.78rem;color:var(--dim);margin-bottom:2px">${m}</div>
+          <div style="font-size:0.88rem;color:var(--text)">Need <strong>${fmt(need)}</strong> &nbsp;·&nbsp; Have <strong>${fmt(stock)}</strong></div>
+          <div style="font-size:0.82rem;color:${cardColor};font-weight:600;margin-top:3px">${diffLabel}</div>
+        </div>`;
+      }).join('');
+
+      const iskHtml = deficitIsk > 0 && hasPrices
+        ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--goldlt)">Shortfall value at Jita: <strong>${fmtIsk(deficitIsk)}</strong></div>` : '';
+
+      deficitEl.innerHTML = `
+        <div style="margin-bottom:8px;font-size:0.9rem;font-weight:600">${headline}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${cards}</div>
+        ${iskHtml}`;
+    }
+  }
+
+  // ── At-a-glance bars (log scale so rare minerals stay visible) ──────────────
+  const _barMax = Math.max(...MINERALS.map(m => last.stocks[m] ?? 0), 1);
+  const _logMax = Math.log10(_barMax + 1);
+  const barsHtml = '<div style="margin-bottom:8px;font-size:0.73rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px">At a Glance &nbsp;<span style="font-style:italic;letter-spacing:0">(log scale)</span></div>'
+    + '<div class="stock-bars">'
+    + MINERALS.map((m, i) => {
+        const qty  = last.stocks[m] ?? 0;
+        const pend = pending[m];
+        const pct  = (_logMax > 0 ? Math.log10(qty + 1) / _logMax * 100 : 0).toFixed(1);
+        const clr  = COLORS[i];
+        const pendHtml = pend > 0
+          ? `<span class="sbar-pend" style="color:var(--red)">−${fmtShort(pend)}</span>`
+          : '<span class="sbar-pend"></span>';
+        return `<div class="sbar">`
+          + `<span class="sbar-name" style="color:${clr}">${m}</span>`
+          + `<div class="sbar-track" title="${fmt(qty)} units"><div class="sbar-fill" style="width:${pct}%;background:${clr}38;box-shadow:inset 0 0 0 1px ${clr}66"></div></div>`
+          + `<span class="sbar-num" style="color:${qty===0?'var(--dim)':clr}">${qty>0?fmt(qty):'—'}</span>`
+          + pendHtml + '</div>';
+      }).join('')
+    + '</div>';
+
+  wrap.innerHTML = barsHtml + `
+    <p class="hint" style="margin-top:14px">Last snapshot: ${new Date(last.date).toLocaleString()} &nbsp;|&nbsp; ${d.snapshots.length} total snapshot(s)${priceNote}</p>
+    <table>
+      <thead><tr>
+        <th>Mineral</th><th>Stock</th><th>vs Prev</th><th>Pending Orders</th><th>After Fill</th><th>ISK Value</th>
+      </tr></thead>
+      <tbody>${rows}${totalRow}</tbody>
+    </table>`;
+}
+
+function updateHeader() {
+  const d = load();
+  const cnt = document.getElementById('snap-count');
+  const hdr = document.getElementById('hdr-updated');
+  if (!d.snapshots.length) {
+    hdr.textContent = 'No snapshots yet';
+    if (cnt) cnt.textContent = '';
+    return;
+  }
+  const last = d.snapshots[d.snapshots.length - 1];
+  hdr.textContent = 'Last updated: ' + new Date(last.date).toLocaleString();
+  if (cnt) cnt.textContent = d.snapshots.length + ' snapshot(s) saved';
+}
+
+// ── Requests ───────────────────────────────────────────────────────────────────
+function addRequest() {
+  const player = document.getElementById('r-player').value.trim();
+  const date   = document.getElementById('r-date').value;
+  const notes  = document.getElementById('r-notes').value.trim();
+
+  if (!player) { toast('Enter a player name.'); return; }
+  if (!date)   { toast('Select a date.'); return; }
+
+  const minerals = {};
+  MINERALS.forEach(m => {
+    const val = parseFloat((document.getElementById('req-' + slug(m)).value || '').replace(/,/g, '')) || 0;
+    if (val > 0) minerals[m] = val;
+  });
+
+  if (!Object.keys(minerals).length) { toast('Enter at least one mineral quantity.'); return; }
+
+  const d = load();
+  d.requests.unshift({ id: Date.now(), date, player, minerals, status: 'pending', notes });
+  save(d);
+  toast('Request logged!');
+  clearReqForm();
+  renderRequests();
+  renderStock();
+}
+
+function clearReqForm() {
+  document.getElementById('r-player').value = '';
+  MINERALS.forEach(m => { const el = document.getElementById('req-' + slug(m)); if (el) el.value = ''; });
+  document.getElementById('r-notes').value = '';
+}
+
+function setStatus(id, status) {
+  const d = load();
+  const r = d.requests.find(r => r.id === id);
+  if (!r) return;
+
+  const wasPending = r.status === 'pending';
+  r.status = status;
+
+  // When fulfilling a pending request, deduct quantities from stock
+  if (status === 'fulfilled' && wasPending) {
+    if (!d.snapshots.length) {
+      save(d);
+      renderRequests();
+      renderStock();
+      toast('Request fulfilled — no stock snapshot to deduct from.');
+      return;
+    }
+    const last = d.snapshots[d.snapshots.length - 1];
+    const newStocks = { ...last.stocks };
+    const minerals = r.minerals || (r.mineral ? { [r.mineral]: r.quantity } : {});
+    let anyDeducted = false;
+    Object.entries(minerals).forEach(([m, q]) => {
+      if (m in newStocks) {
+        newStocks[m] = Math.max(0, (newStocks[m] ?? 0) - q);
+        anyDeducted = true;
+      }
+    });
+    if (anyDeducted) {
+      d.snapshots.push({ id: Date.now(), date: new Date().toISOString(), stocks: newStocks, note: `Auto: fulfilled order for ${r.player}` });
+    }
+  }
+
+  // When resetting a fulfilled request back to pending, reverse the deduction
+  if (status === 'pending' && r.status !== 'pending') {
+    // status was already set above, check original — handled by re-adding to pending display
+    // No automatic stock reversal; user should correct via snapshot if needed
+  }
+
+  save(d);
+  renderRequests();
+  renderStock();
+  updateHeader();
+  toast(status === 'fulfilled' ? 'Fulfilled — stock updated!' : 'Status updated.');
+}
+
+function delRequest(id) {
+  if (!confirm('Delete this request?')) return;
+  const d = load();
+  d.requests = d.requests.filter(r => r.id !== id);
+  save(d);
+  renderRequests();
+  renderStock();
+  toast('Request deleted.');
+}
+
+function renderRequests() {
+  const d = load();
+  const wrap = document.getElementById('req-table');
+  if (!d.requests.length) { wrap.innerHTML = '<div class="empty">No requests logged yet.</div>'; return; }
+
+  const rows = d.requests.map(r => {
+    // Support both old (mineral/quantity) and new (minerals object) format
+    let mineralHtml;
+    if (r.minerals) {
+      mineralHtml = Object.entries(r.minerals)
+        .map(([m, q]) => `<div>${m}: <span class="mono">${fmt(q)}</span></div>`)
+        .join('');
+    } else {
+      mineralHtml = `${r.mineral}: <span class="mono">${fmt(r.quantity)}</span>`;
+    }
+
+    const btns = [
+      r.status !== 'fulfilled' ? `<button class="btn btn-sm btn-secondary" style="color:var(--green);border-color:var(--green)" onclick="setStatus(${r.id},'fulfilled')">✓ Fill</button>` : '',
+      r.status !== 'pending'   ? `<button class="btn btn-sm btn-secondary" onclick="setStatus(${r.id},'pending')">↩ Reset</button>` : '',
+      r.status !== 'cancelled' ? `<button class="btn btn-sm btn-secondary" style="color:var(--red);border-color:var(--red)" onclick="setStatus(${r.id},'cancelled')">✗ Cancel</button>` : '',
+      `<button class="btn btn-sm btn-danger" onclick="delRequest(${r.id})">🗑</button>`
+    ].filter(Boolean).join('');
+
+    return `<tr>
+      <td>${r.date}</td>
+      <td>${r.player}</td>
+      <td style="font-size:0.82rem;line-height:1.6">${mineralHtml}</td>
+      <td><span class="badge badge-${r.status}">${r.status}</span></td>
+      <td class="dim" style="font-size:0.82rem">${r.notes || ''}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div></td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Date</th><th>Player</th><th>Minerals &amp; Quantities</th>
+      <th>Status</th><th>Notes</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────────
+let chartTrend = null, chartDemand = null, chartCount = null, chartPortfolio = null;
+
+function drawTrend() {
+  const d       = load();
+  const mineral = document.getElementById('t-mineral').value;
+  const range   = document.getElementById('t-range').value;
+  let snaps = d.snapshots;
+  if (range !== 'all') snaps = snaps.slice(-parseInt(range));
+
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  if (chartTrend) chartTrend.destroy();
+  if (!snaps.length) return;
+
+  const ci = MINERALS.indexOf(mineral);
+  chartTrend = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: snaps.map(s => new Date(s.date).toLocaleDateString()),
+      datasets: [{
+        label: mineral,
+        data: snaps.map(s => s.stocks[mineral] ?? 0),
+        borderColor: COLORS[ci],
+        backgroundColor: COLORS[ci] + '22',
+        borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4
+      }]
+    },
+    options: chartOpts(v => fmtShort(v))
+  });
+}
+
+function drawDemand() {
+  const d = load();
+  const vol = {};
+  MINERALS.forEach(m => vol[m] = 0);
+  d.requests.forEach(r => {
+    if (r.minerals) {
+      Object.entries(r.minerals).forEach(([m, q]) => { if (m in vol) vol[m] += q; });
+    } else if (r.mineral in vol) {
+      vol[r.mineral] += r.quantity;
+    }
+  });
+
+  const labels = MINERALS.filter(m => vol[m] > 0);
+  const ctx = document.getElementById('demand-chart').getContext('2d');
+  if (chartDemand) chartDemand.destroy();
+  if (!labels.length) return;
+
+  chartDemand = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Total Volume Requested',
+        data: labels.map(m => vol[m]),
+        backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length] + 'bb'),
+        borderColor:     labels.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth: 1
+      }]
+    },
+    options: chartOpts(v => fmtShort(v))
+  });
+}
+
+function drawCount() {
+  const d = load();
+  const cnt = {};
+  MINERALS.forEach(m => cnt[m] = 0);
+  d.requests.forEach(r => {
+    if (r.minerals) {
+      Object.keys(r.minerals).forEach(m => { if (m in cnt && r.minerals[m] > 0) cnt[m]++; });
+    } else if (r.mineral in cnt) {
+      cnt[r.mineral]++;
+    }
+  });
+
+  const labels = MINERALS.filter(m => cnt[m] > 0);
+  const ctx = document.getElementById('count-chart').getContext('2d');
+  if (chartCount) chartCount.destroy();
+  if (!labels.length) return;
+
+  chartCount = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Number of Requests',
+        data: labels.map(m => cnt[m]),
+        backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length] + 'bb'),
+        borderColor:     labels.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth: 1
+      }]
+    },
+    options: chartOpts(v => Math.floor(v) === v ? v : '')
+  });
+}
+
+function drawPortfolio() {
+  const d = load();
+  const priced = d.snapshots.filter(s => s.prices && Object.keys(s.prices).length);
+  const ctx = document.getElementById('portfolio-chart').getContext('2d');
+  if (chartPortfolio) chartPortfolio.destroy();
+  if (!priced.length) return;
+
+  const values = priced.map(s =>
+    MINERALS.reduce((sum, m) => sum + (s.stocks[m] ?? 0) * (s.prices[m] ?? 0), 0)
+  );
+
+  chartPortfolio = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: priced.map(s => new Date(s.date).toLocaleDateString()),
+      datasets: [{
+        label: 'Portfolio Value (ISK)',
+        data: values,
+        borderColor: '#c9a227',
+        backgroundColor: '#c9a22722',
+        borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4
+      }]
+    },
+    options: chartOpts(v => fmtIsk(v))
+  });
+}
+
+function chartOpts(yFmt) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#d0d8e8' } },
+      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw)}` } }
+    },
+    scales: {
+      x: { ticks: { color: '#7a8899' }, grid: { color: '#1a2030' } },
+      y: { ticks: { color: '#7a8899', callback: yFmt }, grid: { color: '#1a2030' } }
+    }
+  };
+}
+
+function drawSummary() {
+  const d = load();
+  const wrap = document.getElementById('demand-summary');
+  if (!d.requests.length) { wrap.innerHTML = '<div class="empty">No requests logged yet.</div>'; return; }
+
+  const total     = d.requests.length;
+  const pending   = d.requests.filter(r => r.status === 'pending').length;
+  const fulfilled = d.requests.filter(r => r.status === 'fulfilled').length;
+  const cancelled = d.requests.filter(r => r.status === 'cancelled').length;
+
+  const vol = {};
+  MINERALS.forEach(m => vol[m] = 0);
+  d.requests.forEach(r => {
+    if (r.minerals) {
+      Object.entries(r.minerals).forEach(([m, q]) => { if (m in vol) vol[m] += q; });
+    } else if (r.mineral in vol) {
+      vol[r.mineral] += r.quantity;
+    }
+  });
+  const sorted = [...MINERALS].sort((a, b) => vol[b] - vol[a]).filter(m => vol[m] > 0);
+
+  const rows = sorted.map(m => {
+    const cnt = d.requests.filter(r =>
+      (r.minerals && r.minerals[m]) || r.mineral === m
+    ).length;
+    return `<tr><td>${m}</td><td class="mono">${fmt(vol[m])}</td><td>${cnt}</td></tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="val">${total}</div><div class="lbl">Total Requests</div></div>
+      <div class="stat-card"><div class="val" style="color:var(--orange)">${pending}</div><div class="lbl">Pending</div></div>
+      <div class="stat-card"><div class="val" style="color:var(--green)">${fulfilled}</div><div class="lbl">Fulfilled</div></div>
+      <div class="stat-card"><div class="val" style="color:var(--red)">${cancelled}</div><div class="lbl">Cancelled</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Mineral</th><th>Total Volume Requested</th><th>Request Count</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Snapshot history (Data tab) ────────────────────────────────────────────────
+function renderSnapHistory() {
+  const d = load();
+  const wrap = document.getElementById('snap-history');
+  if (!d.snapshots.length) { wrap.innerHTML = '<div class="empty">No snapshots.</div>'; return; }
+
+  const rows = [...d.snapshots].reverse().map(s => {
+    const top = MINERALS.filter(m => (s.stocks[m] ?? 0) > 0)
+      .sort((a, b) => (s.stocks[b] ?? 0) - (s.stocks[a] ?? 0))
+      .slice(0, 3)
+      .map(m => `${m}: ${fmtShort(s.stocks[m])}`)
+      .join(', ') || 'All zero';
+    return `<tr>
+      <td>${new Date(s.date).toLocaleString()}</td>
+      <td class="dim" style="font-size:0.82rem">${top}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="delSnapshot(${s.id})">Delete</button></td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Date / Time</th><th>Top Minerals</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function delSnapshot(id) {
+  if (!confirm('Delete this snapshot?')) return;
+  const d = load();
+  d.snapshots = d.snapshots.filter(s => s.id !== id);
+  save(d);
+  renderSnapHistory();
+  renderStock();
+  updateHeader();
+  toast('Snapshot deleted.');
+}
+
+// ── Export / Import ────────────────────────────────────────────────────────────
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(load(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'souup_minerals_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Data exported!');
+}
+
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      if (!Array.isArray(parsed.snapshots) || !Array.isArray(parsed.requests))
+        throw new Error('bad format');
+      if (!confirm(`Import ${parsed.snapshots.length} snapshots and ${parsed.requests.length} requests?\nThis replaces all current data.`)) return;
+      save(parsed);
+      renderStock(); renderRequests(); updateHeader();
+      toast('Import successful!');
+    } catch { toast('Import failed — invalid file format.'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function nukeAll() {
+  if (!confirm('Delete ALL data? This cannot be undone.')) return;
+  if (!confirm('Are you absolutely sure?')) return;
+  localStorage.removeItem(KEY);
+  renderStock(); renderRequests(); updateHeader(); renderSnapHistory();
+  toast('All data deleted.');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function fmtIsk(n) {
+  if (n >= 1e12) return (n/1e12).toFixed(2) + ' T ISK';
+  if (n >= 1e9)  return (n/1e9).toFixed(2)  + ' B ISK';
+  if (n >= 1e6)  return (n/1e6).toFixed(2)  + ' M ISK';
+  if (n >= 1e3)  return (n/1e3).toFixed(1)  + ' K ISK';
+  return Math.round(n) + ' ISK';
+}
+function fmt(n) { return Math.round(n || 0).toLocaleString(); }
+function fmtShort(n) {
+  if (n >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return String(Math.round(n));
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+function init() {
+  handleEveOAuthCallback();
+  buildInputs();
+  buildReqInputs();
+  buildSelects();
+  document.getElementById('r-date').value = new Date().toISOString().slice(0,10);
+
+  // Pre-fill stock form from last snapshot if available
+  const d = load();
+  if (d.snapshots.length) {
+    const last = d.snapshots[d.snapshots.length - 1];
+    MINERALS.forEach(m => {
+      const el = document.getElementById('inp-' + slug(m));
+      if (el) el.value = last.stocks[m] ?? 0;
+    });
+  }
+
+  renderStock();
+  renderRequests();
+  updateHeader();
+}
+
+init();
+</script>
+</body>
+</html>
