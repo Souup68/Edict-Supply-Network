@@ -45,15 +45,14 @@ A browser-based mineral tracking tool for EVE Online players. Track your mineral
 4. Click **Calculate Reprocess** to see the mineral output
 
 **Efficiency presets (max skills + Beancounter RP-804 implant):**
-| Station Type | Ore Eff. |
+| Station / Space | Ore Eff. |
 |---|---|
-| NPC Station (Highsec / Lowsec) | 0.7231 |
-| Athanor — T1 rig (Low / Null / WH) | 0.7563 |
-| Athanor — T2 rig (Low / Null / WH) | 0.7945 |
-| Tatara — T1 rig (Low / Null / WH) | 0.8042 |
-| Tatara — T2 rig (Low / Null / WH) | 0.8424 |
+| NPC Station (any space) | 0.7231 |
+| Player Refinery — Highsec (T2 rig) | 0.8249 |
+| Player Refinery — Lowsec (T2 rig) | 0.8744 |
+| Player Refinery — Nullsec / WH (T2 rig) | 0.9239 |
 
-> If you don't have the RP-804 implant or your skills aren't maxed, enter your value manually. The decimal is your total efficiency (e.g. 75% = `0.7500`).
+> Presets assume max skills + RP-804 implant. If your skills aren't maxed or you lack the implant, enter your value manually — e.g. 75% efficiency = `0.7500`. Works for ore and moon ore.
 
 ---
 
