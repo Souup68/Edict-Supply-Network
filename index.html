@@ -180,6 +180,14 @@
 <div id="tab-stock" class="tab active">
 
   <div class="panel">
+    <div class="panel-title">Connect EVE Character</div>
+    <p class="hint">Authorize access to your character's assets to auto-populate mineral quantities. No data is stored on external servers.</p>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="initEveOAuth()">🔐 Connect with EVE SSO</button>
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="panel-title">Paste from EVE Assets</div>
     <p class="hint">Copy your minerals from the EVE assets window and paste below — quantities will fill in automatically.</p>
     <textarea id="asset-paste" rows="6" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:3px;font-family:'Courier New',monospace;font-size:0.82rem;resize:vertical" placeholder="Paste EVE asset rows here..."></textarea>
@@ -196,7 +204,7 @@
       <button class="btn btn-primary" onclick="saveSnapshot()">Save Snapshot</button>
       <button class="btn btn-secondary" onclick="loadLast()">Load Last Values</button>
       <button class="btn btn-secondary" onclick="resetInputs()">Reset Values</button>
-      <button class="btn btn-secondary" id="btn-fetch-prices" onclick="fetchPrices()">💹 Fetch Amarr Prices</button>
+      <button class="btn btn-secondary" id="btn-fetch-prices" onclick="fetchPrices()">💹 Fetch Jita Prices</button>
       <span class="hint" id="price-status" style="margin:0"></span>
       <span class="hint" id="snap-count" style="margin:0"></span>
     </div>
@@ -290,7 +298,7 @@
 
   <div class="panel">
     <div class="panel-title">Portfolio Value Over Time</div>
-    <p class="hint">Total Amarr buy value of your stock at each snapshot (only shown for snapshots where prices were fetched).</p>
+    <p class="hint">Total Jita buy value of your stock at each snapshot (only shown for snapshots where prices were fetched).</p>
     <div class="chart-wrap"><canvas id="portfolio-chart"></canvas></div>
   </div>
 
@@ -590,7 +598,7 @@ function calculateReprocess() {
   const unknownHtml = unknown.length
     ? `<p class="hint" style="color:var(--orange);margin-top:8px">⚠ Skipped (not recognised): ${unknown.join(', ')}</p>` : '';
   const priceNote = !hasPrices
-    ? `<p class="hint" style="color:var(--dim);margin-top:6px">Fetch Amarr prices on the Stock tab to see ISK values.</p>` : '';
+    ? `<p class="hint" style="color:var(--dim);margin-top:6px">Fetch Jita prices on the Stock tab to see ISK values.</p>` : '';
 
   document.getElementById('rp-results').innerHTML = `
     <div class="panel">
@@ -632,8 +640,133 @@ const COLORS = [
 ];
 const KEY = 'souup_mineral_tracker';
 
+// ── EVE OAuth2 PKCE ────────────────────────────────────────────────────────────
+const EVE_CLIENT_ID = '3c37f79a01f146d6899129365e68b107';
+const EVE_AUTH_URL = 'https://login.eveonline.com/v2/oauth/authorize';
+const EVE_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
+const EVE_ESI_URL = 'https://esi.evetech.net/latest';
+
+// PKCE helpers
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let result = '';
+  for (let i = 0; i < length; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+  return result;
+}
+
+async function generateCodeChallenge(codeVerifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function initEveOAuth() {
+  const codeVerifier = generateRandomString(64);
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  const state = generateRandomString(32);
+  
+  sessionStorage.setItem('eve_state', state);
+  sessionStorage.setItem('eve_code_verifier', codeVerifier);
+  
+  const redirectUri = window.location.href.split('?')[0].split('#')[0];
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: EVE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: 'esi-assets.read_assets.v1',
+    state: state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  });
+  
+  window.location.href = `${EVE_AUTH_URL}?${params.toString()}`;
+}
+
+async function handleEveOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  
+  if (!code) return;
+  
+  const savedState = sessionStorage.getItem('eve_state');
+  if (state !== savedState) {
+    toast('OAuth state mismatch — possible security issue.');
+    return;
+  }
+  
+  const codeVerifier = sessionStorage.getItem('eve_code_verifier');
+  if (!codeVerifier) {
+    toast('Code verifier not found.');
+    return;
+  }
+  
+  try {
+    const redirectUri = window.location.href.split('?')[0].split('#')[0];
+    const tokenRes = await fetch(EVE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: EVE_CLIENT_ID,
+        code: code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
+      })
+    });
+    
+    if (!tokenRes.ok) throw new Error('Token exchange failed');
+    const tokenData = await tokenRes.json();
+    
+    sessionStorage.setItem('eve_access_token', tokenData.access_token);
+    sessionStorage.setItem('eve_char_id', tokenData.character_id);
+    
+    // Clean up URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    toast('Connected to EVE! Fetching assets...');
+    await fetchEveAssets(tokenData.access_token, tokenData.character_id);
+  } catch (e) {
+    toast('OAuth callback failed: ' + e.message);
+  }
+}
+
+async function fetchEveAssets(token, charId) {
+  try {
+    const res = await fetch(`${EVE_ESI_URL}/characters/${charId}/assets/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
+    const assets = await res.json();
+    
+    const mineralMap = {};
+    const mineralIds = new Set(Object.values(MINERAL_IDS));
+    
+    assets.forEach(item => {
+      if (mineralIds.has(item.type_id)) {
+        const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
+        if (mineralName) {
+          mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
+        }
+      }
+    });
+    
+    Object.entries(mineralMap).forEach(([mineral, qty]) => {
+      const el = document.getElementById('inp-' + slug(mineral));
+      if (el) el.value = qty;
+    });
+    
+    toast(`Loaded ${Object.keys(mineralMap).length} mineral${Object.keys(mineralMap).length > 1 ? 's' : ''} from EVE assets!`);
+  } catch (e) {
+    toast('Failed to fetch assets: ' + e.message);
+  }
+}
+
 // ── Live price cache (session only, not persisted) ─────────────────────────────
-let livePrices = {}; // { mineralName: amarrBuyMax }
+let livePrices = {}; // { mineralName: jitaBuyMax }
 
 // ── Storage ────────────────────────────────────────────────────────────────────
 function load() {
@@ -715,7 +848,7 @@ function saveSnapshot() {
   if (Object.keys(livePrices).length) snap.prices = { ...livePrices };
   d.snapshots.push(snap);
   save(d);
-  toast('Snapshot saved!');
+  toast('Snapshot saved! 💾 Remember to export for backup.');
   renderStock();
   updateHeader();
 }
@@ -797,7 +930,7 @@ async function fetchPrices() {
   btn.textContent = '⏳ Fetching...';
   status.textContent = '';
   const ids = MINERALS.map(m => MINERAL_IDS[m]).join(',');
-  const url = `https://market.fuzzwork.co.uk/aggregates/?region=10000043&types=${ids}`;
+  const url = `https://market.fuzzwork.co.uk/aggregates/?region=10000002&types=${ids}`;
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error('API error ' + res.status);
@@ -808,17 +941,17 @@ async function fetchPrices() {
       if (data[id]) livePrices[m] = parseFloat(data[id].buy.max);
     });
     const time = new Date().toLocaleTimeString();
-    status.textContent = `Prices fetched at ${time} (Amarr best buy)`;
+    status.textContent = `Prices fetched at ${time} (Jita best buy)`;
     status.style.color = 'var(--green)';
     renderStock();
-    toast('Amarr prices loaded!');
+    toast('Jita prices loaded!');
   } catch (e) {
     status.textContent = 'Failed to fetch prices — check connection.';
     status.style.color = 'var(--red)';
     toast('Price fetch failed.');
   }
   btn.disabled = false;
-  btn.textContent = '💹 Fetch Amarr Prices';
+  btn.textContent = '💹 Fetch Jita Prices';
 }
 
 function resetInputs() {
@@ -905,7 +1038,7 @@ function renderStock() {
 
   const priceNote = hasPrices
     ? (Object.keys(livePrices).length ? ' &nbsp;|&nbsp; <span style="color:var(--green)">Live prices loaded</span>' : ' &nbsp;|&nbsp; <span style="color:var(--dim)">Prices from snapshot</span>')
-    : ' &nbsp;|&nbsp; <span style="color:var(--dim)">No prices — click Fetch Amarr Prices</span>';
+    : ' &nbsp;|&nbsp; <span style="color:var(--dim)">No prices — click Fetch Jita Prices</span>';
   const totalRow = hasPrices && totalIsk > 0
     ? `<tr style="border-top:2px solid var(--border)"><td colspan="5" style="text-align:right;color:var(--dim);font-size:0.8rem;padding-right:8px">Total Portfolio Value</td><td style="color:var(--goldlt);font-weight:700">${fmtIsk(totalIsk)}</td></tr>`
     : '';
@@ -941,7 +1074,7 @@ function renderStock() {
       }).join('');
 
       const iskHtml = deficitIsk > 0 && hasPrices
-        ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--goldlt)">Shortfall value at Amarr: <strong>${fmtIsk(deficitIsk)}</strong></div>` : '';
+        ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--goldlt)">Shortfall value at Jita: <strong>${fmtIsk(deficitIsk)}</strong></div>` : '';
 
       deficitEl.innerHTML = `
         <div style="margin-bottom:8px;font-size:0.9rem;font-weight:600">${headline}</div>
@@ -1401,6 +1534,7 @@ function toast(msg) {
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 function init() {
+  handleEveOAuthCallback();
   buildInputs();
   buildReqInputs();
   buildSelects();
