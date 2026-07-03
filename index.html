@@ -759,22 +759,30 @@ async function fetchEveAssets(token, charId) {
     if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
     const assets = await res.json();
     console.log('Total assets returned:', assets.length);
-    console.log('All asset type IDs:', assets.map(a => a.type_id).slice(0, 50));
+    console.log('All assets:', assets.map(a => ({ type_id: a.type_id, qty: a.quantity })));
     
     const mineralMap = {};
     const mineralIds = new Set(Object.values(MINERAL_IDS));
     console.log('Looking for mineral IDs:', Array.from(mineralIds));
     
-    assets.forEach(item => {
-      if (mineralIds.has(item.type_id)) {
-        console.log('Found mineral:', item.type_id, item.quantity);
-        const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
-        if (mineralName) {
-          mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
+    // Recursively process all assets (including nested in containers)
+    function processAssets(assetList) {
+      assetList.forEach(item => {
+        if (mineralIds.has(item.type_id)) {
+          console.log('Found mineral:', item.type_id, 'quantity:', item.quantity);
+          const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
+          if (mineralName) {
+            mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
+          }
         }
-      }
-    });
+        // Process nested items if they exist
+        if (item.children && Array.isArray(item.children)) {
+          processAssets(item.children);
+        }
+      });
+    }
     
+    processAssets(assets);
     console.log('Mineral map result:', mineralMap);
     
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
