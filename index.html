@@ -760,16 +760,11 @@ function updateEveConnectUI() {
   const accessToken = localStorage.getItem('eve_access_token');
   const charId = localStorage.getItem('eve_char_id');
   
-  console.log('updateEveConnectUI - charName:', charName, 'hasToken:', !!accessToken, 'charId:', charId);
-  console.log('localStorage contents:', { charName, charId, hasToken: !!accessToken });
-  
   const panel = document.querySelector('[data-eve-connect]');
-  console.log('Panel found:', !!panel);
   if (!panel) return;
   
   if (charName && accessToken && charId) {
     // Show logged-in UI
-    console.log('Rendering logged-in UI with Sign Out button');
     panel.innerHTML = `
       <div class="panel-title">EVE Character Connected</div>
       <div style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
@@ -782,7 +777,6 @@ function updateEveConnectUI() {
     `;
   } else {
     // Show login UI
-    console.log('Rendering login UI');
     panel.innerHTML = `
       <div class="panel-title">Connect EVE Character</div>
       <p class="hint">Authorize access to your character's assets to auto-populate mineral quantities. No data is stored on external servers.</p>
@@ -806,6 +800,7 @@ function showLogoutConfirm() {
   
   // Create modal overlay
   const overlay = document.createElement('div');
+  overlay.id = 'logout-modal-overlay';
   overlay.style.cssText = `
     position: fixed;
     top: 0;
@@ -834,8 +829,8 @@ function showLogoutConfirm() {
     <h3 style="color: var(--goldlt); margin-top: 0; margin-bottom: 12px;">Sign Out</h3>
     <p style="color: var(--text); margin: 0 0 20px 0;">Before you sign out, would you like to export your data? This ensures you have a backup of all your snapshots and minerals data.</p>
     <div style="display: flex; gap: 8px; justify-content: flex-end;">
-      <button class="btn" onclick="this.closest('div').parentElement.parentElement.remove()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text);">Cancel</button>
-      <button class="btn btn-primary" onclick="exportJSONWithCharName(); document.querySelector('div[style*=\"position: fixed\"]')?.remove();">📥 Export & Sign Out</button>
+      <button class="btn" onclick="document.getElementById('logout-modal-overlay').remove()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text);">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('logout-modal-overlay').remove(); exportJSONWithCharName();">📥 Export & Sign Out</button>
     </div>
   `;
   
