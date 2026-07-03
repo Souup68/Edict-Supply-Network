@@ -752,14 +752,30 @@ async function handleEveOAuthCallback() {
 
 async function fetchEveAssets(token, charId) {
   try {
-    const res = await fetch(`${EVE_ESI_URL}/characters/${charId}/assets/`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    let allAssets = [];
+    let page = 1;
+    let totalPages = 1;
     
-    if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
-    const assets = await res.json();
-    console.log('Total assets returned:', assets.length);
-    console.log('All assets:', assets.map(a => ({ type_id: a.type_id, qty: a.quantity })));
+    // Fetch all pages of assets (max 1000 per page)
+    while (page <= totalPages) {
+      const res = await fetch(`${EVE_ESI_URL}/characters/${charId}/assets/?page=${page}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
+      
+      // Get total pages from header
+      const pagesHeader = res.headers.get('X-Pages');
+      if (pagesHeader) totalPages = parseInt(pagesHeader, 10);
+      
+      const pageAssets = await res.json();
+      allAssets = allAssets.concat(pageAssets);
+      
+      console.log(`Fetched page ${page} of ${totalPages}, got ${pageAssets.length} items`);
+      page++;
+    }
+    
+    console.log('Total assets from all pages:', allAssets.length);
     
     const mineralMap = {};
     const mineralIds = new Set(Object.values(MINERAL_IDS));
@@ -782,7 +798,7 @@ async function fetchEveAssets(token, charId) {
       });
     }
     
-    processAssets(assets);
+    processAssets(allAssets);
     console.log('Mineral map result:', mineralMap);
     
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
