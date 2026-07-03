@@ -760,7 +760,11 @@ function updateEveConnectUI() {
   const accessToken = localStorage.getItem('eve_access_token');
   const charId = localStorage.getItem('eve_char_id');
   
+  console.log('updateEveConnectUI - charName:', charName, 'hasToken:', !!accessToken, 'charId:', charId);
+  console.log('localStorage contents:', { charName, charId, hasToken: !!accessToken });
+  
   const panel = document.querySelector('[data-eve-connect]');
+  console.log('Panel found:', !!panel);
   if (!panel) return;
   
   if (charName && accessToken && charId) {
