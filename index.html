@@ -315,22 +315,23 @@
       <div style="display:flex;align-items:center;gap:4px">
         <select id="rp-preset" onchange="applyEfficiencyPreset(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 2px;border-radius:3px;font-size:0.85rem;width:22px;cursor:pointer" title="Select a preset">
           <option value="">▾</option>
-          <optgroup label="NPC Station (Highsec / Lowsec)">
+          <optgroup label="NPC Station (any space)">
             <option value="0.7231">Max skills + RP-804 — 0.7231</option>
           </optgroup>
-          <optgroup label="Athanor Refinery (Low / Null / WH)">
-            <option value="0.7563">T1 rig, max skills + RP-804 — 0.7563</option>
-            <option value="0.7945">T2 rig, max skills + RP-804 — 0.7945</option>
+          <optgroup label="Player Refinery — Highsec">
+            <option value="0.8249">T2 rig, max skills + RP-804 — 0.8249</option>
           </optgroup>
-          <optgroup label="Tatara Refinery (Low / Null / WH)">
-            <option value="0.8042">T1 rig, max skills + RP-804 — 0.8042</option>
-            <option value="0.8424">T2 rig, max skills + RP-804 — 0.8424</option>
+          <optgroup label="Player Refinery — Lowsec">
+            <option value="0.8744">T2 rig, max skills + RP-804 — 0.8744</option>
+          </optgroup>
+          <optgroup label="Player Refinery — Nullsec / WH">
+            <option value="0.9239">T2 rig, max skills + RP-804 — 0.9239</option>
           </optgroup>
         </select>
         <input id="rp-efficiency" type="number" value="0.7231" min="0.01" max="1" step="0.0001" style="width:90px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:3px;font-size:0.9rem" oninput="document.getElementById('rp-preset').value=''">
       </div>
     </div>
-    <p class="hint" style="margin-top:8px">Assumes max skills (Reprocessing V, Reprocessing Efficiency V, ore-specific V). Applies to ore &amp; moon ore.</p>
+    <p class="hint" style="margin-top:8px">Presets assume max skills + RP-804 implant. If your skills aren't maxed or you lack the implant, enter your value manually — e.g. 75% efficiency = <strong>0.7500</strong>. Works for ore and moon ore.</p>
   </div>
 
   <div class="panel">
