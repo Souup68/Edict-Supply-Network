@@ -649,19 +649,13 @@ const EVE_ESI_URL = 'https://esi.evetech.net/latest';
 // Extract character ID from JWT token
 function getCharIdFromJwt(token) {
   try {
-    console.log('Decoding JWT token...');
     const parts = token.split('.');
-    console.log('Token parts:', parts.length);
     if (parts.length !== 3) throw new Error('Invalid JWT format');
     const payload = JSON.parse(atob(parts[1]));
-    console.log('JWT payload:', payload);
     const charStr = payload.sub; // e.g., "CHARACTER:EVE:90640971"
-    console.log('Character string:', charStr);
     const charId = charStr.split(':')[2];
-    console.log('Extracted character ID:', charId);
     return parseInt(charId, 10);
   } catch (e) {
-    console.error('JWT decode error:', e);
     return null;
   }
 }
@@ -725,7 +719,6 @@ async function handleEveOAuthCallback() {
   
   try {
     const redirectUri = window.location.href.split('?')[0].split('#')[0];
-    console.log('OAuth redirect URI:', redirectUri);
     const tokenRes = await fetch(EVE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -743,7 +736,6 @@ async function handleEveOAuthCallback() {
     
     const charId = getCharIdFromJwt(tokenData.access_token);
     if (!charId) throw new Error('Failed to extract character ID from token');
-    console.log('Token exchange successful, character ID:', charId);
     
     sessionStorage.setItem('eve_access_token', tokenData.access_token);
     sessionStorage.setItem('eve_char_id', charId);
@@ -754,22 +746,18 @@ async function handleEveOAuthCallback() {
     toast('Connected to EVE! Fetching assets...');
     await fetchEveAssets(tokenData.access_token, charId);
   } catch (e) {
-    console.error('OAuth callback error:', e);
     toast('OAuth callback failed: ' + e.message);
   }
 }
 
 async function fetchEveAssets(token, charId) {
   try {
-    console.log('Fetching assets for character:', charId);
     const res = await fetch(`${EVE_ESI_URL}/characters/${charId}/assets/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     
-    console.log('Assets response status:', res.status);
     if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
     const assets = await res.json();
-    console.log('Assets fetched:', assets.length, 'items');
     
     const mineralMap = {};
     const mineralIds = new Set(Object.values(MINERAL_IDS));
@@ -790,7 +778,6 @@ async function fetchEveAssets(token, charId) {
     
     toast(`Loaded ${Object.keys(mineralMap).length} mineral${Object.keys(mineralMap).length > 1 ? 's' : ''} from EVE assets!`);
   } catch (e) {
-    console.error('Asset fetch error:', e);
     toast('Failed to fetch assets: ' + e.message);
   }
 }
