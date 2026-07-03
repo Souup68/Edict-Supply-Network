@@ -705,6 +705,7 @@ async function handleEveOAuthCallback() {
   
   try {
     const redirectUri = window.location.href.split('?')[0].split('#')[0];
+    console.log('OAuth redirect URI:', redirectUri);
     const tokenRes = await fetch(EVE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -719,6 +720,7 @@ async function handleEveOAuthCallback() {
     
     if (!tokenRes.ok) throw new Error('Token exchange failed');
     const tokenData = await tokenRes.json();
+    console.log('Token exchange successful, character ID:', tokenData.character_id);
     
     sessionStorage.setItem('eve_access_token', tokenData.access_token);
     sessionStorage.setItem('eve_char_id', tokenData.character_id);
@@ -729,18 +731,22 @@ async function handleEveOAuthCallback() {
     toast('Connected to EVE! Fetching assets...');
     await fetchEveAssets(tokenData.access_token, tokenData.character_id);
   } catch (e) {
+    console.error('OAuth callback error:', e);
     toast('OAuth callback failed: ' + e.message);
   }
 }
 
 async function fetchEveAssets(token, charId) {
   try {
+    console.log('Fetching assets for character:', charId);
     const res = await fetch(`${EVE_ESI_URL}/characters/${charId}/assets/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     
+    console.log('Assets response status:', res.status);
     if (!res.ok) throw new Error('ESI fetch failed: ' + res.status);
     const assets = await res.json();
+    console.log('Assets fetched:', assets.length, 'items');
     
     const mineralMap = {};
     const mineralIds = new Set(Object.values(MINERAL_IDS));
@@ -761,6 +767,7 @@ async function fetchEveAssets(token, charId) {
     
     toast(`Loaded ${Object.keys(mineralMap).length} mineral${Object.keys(mineralMap).length > 1 ? 's' : ''} from EVE assets!`);
   } catch (e) {
+    console.error('Asset fetch error:', e);
     toast('Failed to fetch assets: ' + e.message);
   }
 }
