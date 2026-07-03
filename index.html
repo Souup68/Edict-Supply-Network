@@ -830,6 +830,7 @@ function showLogoutConfirm() {
     <p style="color: var(--text); margin: 0 0 20px 0;">Before you sign out, would you like to export your data? This ensures you have a backup of all your snapshots and minerals data.</p>
     <div style="display: flex; gap: 8px; justify-content: flex-end;">
       <button class="btn" onclick="document.getElementById('logout-modal-overlay').remove()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text);">Cancel</button>
+      <button class="btn" onclick="document.getElementById('logout-modal-overlay').remove(); signOutEve();" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text);">Sign Out</button>
       <button class="btn btn-primary" onclick="document.getElementById('logout-modal-overlay').remove(); exportJSONWithCharName();">📥 Export & Sign Out</button>
     </div>
   `;
