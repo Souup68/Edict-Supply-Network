@@ -179,7 +179,7 @@
 <!-- ══════════ STOCK TAB ══════════ -->
 <div id="tab-stock" class="tab active">
 
-  <div class="panel">
+  <div class="panel" data-eve-connect>
     <div class="panel-title">Connect EVE Character</div>
     <p class="hint">Authorize access to your character's assets to auto-populate mineral quantities. No data is stored on external servers.</p>
     <div class="actions">
@@ -646,15 +646,16 @@ const EVE_AUTH_URL = 'https://login.eveonline.com/v2/oauth/authorize';
 const EVE_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
 const EVE_ESI_URL = 'https://esi.evetech.net/latest';
 
-// Extract character ID from JWT token
-function getCharIdFromJwt(token) {
+// Extract character ID and name from JWT token
+function getCharInfoFromJwt(token) {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) throw new Error('Invalid JWT format');
     const payload = JSON.parse(atob(parts[1]));
     const charStr = payload.sub; // e.g., "CHARACTER:EVE:90640971"
-    const charId = charStr.split(':')[2];
-    return parseInt(charId, 10);
+    const charId = parseInt(charStr.split(':')[2], 10);
+    const charName = payload.name; // e.g., "10 Second Fredd"
+    return { charId, charName };
   } catch (e) {
     return null;
   }
@@ -734,20 +735,57 @@ async function handleEveOAuthCallback() {
     if (!tokenRes.ok) throw new Error('Token exchange failed');
     const tokenData = await tokenRes.json();
     
-    const charId = getCharIdFromJwt(tokenData.access_token);
-    if (!charId) throw new Error('Failed to extract character ID from token');
+    const charInfo = getCharInfoFromJwt(tokenData.access_token);
+    if (!charInfo) throw new Error('Failed to extract character info from token');
     
     sessionStorage.setItem('eve_access_token', tokenData.access_token);
-    sessionStorage.setItem('eve_char_id', charId);
+    sessionStorage.setItem('eve_char_id', charInfo.charId);
+    sessionStorage.setItem('eve_char_name', charInfo.charName);
+    
+    // Update UI to show logged-in state
+    updateEveConnectUI();
     
     // Clean up URL
     window.history.replaceState({}, document.title, window.location.pathname);
     
     toast('Connected to EVE! Fetching assets...');
-    await fetchEveAssets(tokenData.access_token, charId);
+    await fetchEveAssets(tokenData.access_token, charInfo.charId);
   } catch (e) {
     toast('OAuth callback failed: ' + e.message);
   }
+}
+
+function updateEveConnectUI() {
+  const charName = sessionStorage.getItem('eve_char_name');
+  const accessToken = sessionStorage.getItem('eve_access_token');
+  const charId = sessionStorage.getItem('eve_char_id');
+  
+  if (charName && accessToken && charId) {
+    // Show logged-in UI
+    const panel = document.querySelector('[data-eve-connect]');
+    if (panel) {
+      panel.innerHTML = `
+        <div class="panel-title">EVE Character Connected</div>
+        <div class="actions" style="align-items: center; gap: 12px;">
+          <span style="color: var(--goldlt); font-weight: 600;">✓ Signed in as <strong>${charName}</strong></span>
+          <button class="btn btn-primary" onclick="refreshEveAssets()" style="margin-left: auto;">🔄 Refresh Assets</button>
+        </div>
+      `;
+    }
+  }
+}
+
+async function refreshEveAssets() {
+  const token = sessionStorage.getItem('eve_access_token');
+  const charId = sessionStorage.getItem('eve_char_id');
+  
+  if (!token || !charId) {
+    toast('Not connected to EVE. Please sign in first.');
+    return;
+  }
+  
+  toast('Refreshing assets from EVE...');
+  await fetchEveAssets(token, parseInt(charId, 10));
 }
 
 async function fetchEveAssets(token, charId) {
@@ -770,22 +808,16 @@ async function fetchEveAssets(token, charId) {
       
       const pageAssets = await res.json();
       allAssets = allAssets.concat(pageAssets);
-      
       console.log(`Fetched page ${page} of ${totalPages}, got ${pageAssets.length} items`);
       page++;
     }
     
-    console.log('Total assets from all pages:', allAssets.length);
-    
     const mineralMap = {};
     const mineralIds = new Set(Object.values(MINERAL_IDS));
-    console.log('Looking for mineral IDs:', Array.from(mineralIds));
     
-    // Recursively process all assets (including nested in containers)
     function processAssets(assetList) {
       assetList.forEach(item => {
         if (mineralIds.has(item.type_id)) {
-          console.log('Found mineral:', item.type_id, 'quantity:', item.quantity);
           const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
           if (mineralName) {
             mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
@@ -799,7 +831,6 @@ async function fetchEveAssets(token, charId) {
     }
     
     processAssets(allAssets);
-    console.log('Mineral map result:', mineralMap);
     
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
       const el = document.getElementById('inp-' + slug(mineral));
@@ -1582,6 +1613,7 @@ function toast(msg) {
 // ── Init ───────────────────────────────────────────────────────────────────────
 function init() {
   handleEveOAuthCallback();
+  updateEveConnectUI();
   buildInputs();
   buildReqInputs();
   buildSelects();
