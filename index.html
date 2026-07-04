@@ -611,8 +611,9 @@ function calculateReprocess() {
 
   // Active mineral columns (any non-zero in totals)
   const activeMins = MINERALS.filter(m => totals[m] > 0);
-  const prices = Object.keys(livePrices).length ? livePrices : {};
-  const hasPrices = activeMins.some(m => prices[m]);
+  const prices     = Object.keys(livePrices).length ? livePrices : {};
+  const pricesSell  = Object.keys(livePricesSell).length ? livePricesSell : {};
+  const hasPrices   = activeMins.some(m => prices[m]);
 
   // Ore breakdown table rows
   const oreTableRows = parsed.map(({ displayName, qty, batches, leftover, oreData }) => {
@@ -632,10 +633,22 @@ function calculateReprocess() {
   // Totals row
   let totalIsk = 0;
   const totalCols = activeMins.map(m => {
-    const isk = hasPrices && prices[m] ? totals[m] * prices[m] : 0;
-    totalIsk += isk;
     return `<td class="mono" style="font-weight:700">${fmt(totals[m])}</td>`;
   }).join('');
+
+  // ISK totals — buy / split / sell
+  let totalBuy = 0, totalSplit = 0, totalSell = 0;
+  if (hasPrices) {
+    activeMins.forEach(m => {
+      const qty  = totals[m];
+      const buy  = prices[m]     ? qty * prices[m]     : 0;
+      const sell = pricesSell[m] ? qty * pricesSell[m] : 0;
+      totalBuy  += buy;
+      totalSell += sell;
+      totalSplit += (buy + sell) / 2;
+    });
+    totalIsk = totalBuy;
+  }
 
   // Mineral summary cards
   const summaryCards = activeMins.map(m => {
@@ -647,8 +660,21 @@ function calculateReprocess() {
     </div>`;
   }).join('');
 
-  const iskTotalHtml = hasPrices && totalIsk > 0
-    ? `<div style="text-align:right;margin-top:10px;font-size:1rem;color:var(--goldlt);font-weight:700">Total Value: ${fmtIsk(totalIsk)}</div>` : '';
+  const iskTotalHtml = hasPrices && totalBuy > 0
+    ? `<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px 18px;text-align:center;min-width:150px">
+          <div style="font-size:0.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Buy (sell to orders)</div>
+          <div style="font-size:1.05rem;font-weight:700;color:var(--cyan)">${fmtIsk(totalBuy)}</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px 18px;text-align:center;min-width:150px">
+          <div style="font-size:0.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Split (midpoint)</div>
+          <div style="font-size:1.05rem;font-weight:700;color:var(--gold)">${fmtIsk(totalSplit)}</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px 18px;text-align:center;min-width:150px">
+          <div style="font-size:0.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Sell (list on market)</div>
+          <div style="font-size:1.05rem;font-weight:700;color:var(--green)">${fmtIsk(totalSell)}</div>
+        </div>
+      </div>` : '';
   const unknownHtml = unknown.length
     ? `<p class="hint" style="color:var(--orange);margin-top:8px">⚠ Skipped (not recognised): ${unknown.join(', ')}</p>` : '';
   const priceNote = !hasPrices
@@ -983,7 +1009,8 @@ async function fetchEveAssets(token, charId) {
 }
 
 // ── Live price cache (session only, not persisted) ─────────────────────────────
-let livePrices = {}; // { mineralName: jitaBuyMax }
+let livePrices = {};     // { mineralName: jitaBuyMax }
+let livePricesSell = {}; // { mineralName: jitaSellMin }
 
 // ── Storage ────────────────────────────────────────────────────────────────────
 function load() {
@@ -1155,7 +1182,10 @@ async function fetchPrices() {
     livePrices = {};
     MINERALS.forEach(m => {
       const id = String(MINERAL_IDS[m]);
-      if (data[id]) livePrices[m] = parseFloat(data[id].buy.max);
+      if (data[id]) {
+        livePrices[m]     = parseFloat(data[id].buy.max);
+        livePricesSell[m] = parseFloat(data[id].sell.min);
+      }
     });
     const time = new Date().toLocaleTimeString();
     status.textContent = `Prices fetched at ${time} (Jita best buy)`;
