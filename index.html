@@ -469,16 +469,28 @@ const ORE_DATA = {
   'arkonor ii-grade':           { Pyerite: 3360, Mexallon: 1260, Megacyte: 126 },
   'arkonor iii-grade':          { Pyerite: 3520, Mexallon: 1320, Megacyte: 132 },
 
-  'spodumain':                  { Tritanium: 48000, Isogen: 3000, Nocxium: 160, Zydrine: 80, Megacyte: 40 },
-  'spodumain ii-grade':         { Tritanium: 50400, Isogen: 3150, Nocxium: 168, Zydrine: 84, Megacyte: 42 },
-  'spodumain iii-grade':        { Tritanium: 52800, Isogen: 3300, Nocxium: 176, Zydrine: 88, Megacyte: 44 },
-  'spodumain iv-grade':         { Tritanium: 55200, Isogen: 3450, Nocxium: 184, Zydrine: 92, Megacyte: 46 },
+  'mercoxit':                   { Morphite: 140 },
+  'mercoxit ii-grade':          { Morphite: 147 },
+  'mercoxit iii-grade':         { Morphite: 154 },
+
+  'spodumain':                  { Tritanium: 48000, Isogen: 1000, Nocxium: 160, Zydrine: 80, Megacyte: 40 },
+  'spodumain ii-grade':         { Tritanium: 50400, Isogen: 1050, Nocxium: 168, Zydrine: 84, Megacyte: 42 },
+  'spodumain iii-grade':        { Tritanium: 52800, Isogen: 1100, Nocxium: 176, Zydrine: 88, Megacyte: 44 },
+  'spodumain iv-grade':         { Tritanium: 55200, Isogen: 1150, Nocxium: 184, Zydrine: 92, Megacyte: 46 },
 
   // ── Pochven (Triglavian / Abyssal) ores ─────────────────────────────────────
   'bezdnacine':                 { Tritanium: 40000, Isogen: 4800, Megacyte: 128 },
   'bezdnacine ii-grade':        { Tritanium: 42000, Isogen: 5040, Megacyte: 134 },
   'bezdnacine iii-grade':       { Tritanium: 44000, Isogen: 5280, Megacyte: 140 },
   'bezdnacine iv-grade':        { Tritanium: 46000, Isogen: 5520, Megacyte: 147 },
+
+  'rakovene':                   { Tritanium: 40000, Isogen: 3200, Zydrine: 200 },
+  'rakovene ii-grade':          { Tritanium: 42000, Isogen: 3360, Zydrine: 210 },
+  'rakovene iii-grade':         { Tritanium: 44000, Isogen: 3520, Zydrine: 220 },
+
+  'talassonite':                { Tritanium: 40000, Nocxium: 960, Megacyte: 32 },
+  'talassonite ii-grade':       { Tritanium: 42000, Nocxium: 1008, Megacyte: 33 },
+  'talassonite iii-grade':      { Tritanium: 44000, Nocxium: 1056, Megacyte: 35 },
 
   // ── Deep Space Survey ores (A0 / YC124 additions) ───────────────────────────
   // Mordunium — pure Pyerite ore — from EVE SDE type_materials
@@ -529,6 +541,7 @@ const LEGACY_ORE_NAMES = {
   'triclinic bistot': 'bistot ii-grade',            'monoclinic bistot': 'bistot iii-grade',
   'crimson arkonor': 'arkonor ii-grade',            'prime arkonor': 'arkonor iii-grade',
   'bright spodumain': 'spodumain ii-grade',         'gleaming spodumain': 'spodumain iii-grade',
+  'magma mercoxit': 'mercoxit ii-grade',            'vitreous mercoxit': 'mercoxit iii-grade',
 };
 
 function setEff(v) {
@@ -1476,6 +1489,9 @@ function drawTrend() {
   if (!snaps.length) return;
 
   const ci = MINERALS.indexOf(mineral);
+  const gradTrend = ctx.createLinearGradient(0, 0, 0, document.getElementById('trend-chart').offsetHeight || 280);
+  gradTrend.addColorStop(0, COLORS[ci] + '99');
+  gradTrend.addColorStop(1, COLORS[ci] + '00');
   chartTrend = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1484,11 +1500,12 @@ function drawTrend() {
         label: mineral,
         data: snaps.map(s => s.stocks[mineral] ?? 0),
         borderColor: COLORS[ci],
-        backgroundColor: COLORS[ci] + '22',
-        borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4
+        backgroundColor: gradTrend,
+        borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 4,
+        pointBackgroundColor: COLORS[ci], pointHoverRadius: 7
       }]
     },
-    options: chartOpts(v => fmtShort(v))
+    options: chartOpts(v => fmtShort(v), v => fmt(v))
   });
 }
 
@@ -1518,10 +1535,12 @@ function drawDemand() {
         data: labels.map(m => vol[m]),
         backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length] + 'bb'),
         borderColor:     labels.map((_, i) => COLORS[i % COLORS.length]),
-        borderWidth: 1
+        borderWidth: 1,
+        borderRadius: 4,
+        borderSkipped: false
       }]
     },
-    options: chartOpts(v => fmtShort(v))
+    options: chartOpts(v => fmtShort(v), v => fmt(v))
   });
 }
 
@@ -1551,10 +1570,12 @@ function drawCount() {
         data: labels.map(m => cnt[m]),
         backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length] + 'bb'),
         borderColor:     labels.map((_, i) => COLORS[i % COLORS.length]),
-        borderWidth: 1
+        borderWidth: 1,
+        borderRadius: 4,
+        borderSkipped: false
       }]
     },
-    options: chartOpts(v => Math.floor(v) === v ? v : '')
+    options: chartOpts(v => Math.floor(v) === v ? v : '', v => String(Math.round(v)))
   });
 }
 
@@ -1569,6 +1590,10 @@ function drawPortfolio() {
     MINERALS.reduce((sum, m) => sum + (s.stocks[m] ?? 0) * (s.prices[m] ?? 0), 0)
   );
 
+  const gradPortfolio = ctx.createLinearGradient(0, 0, 0, document.getElementById('portfolio-chart').offsetHeight || 280);
+  gradPortfolio.addColorStop(0, '#c9a22799');
+  gradPortfolio.addColorStop(1, '#c9a22700');
+
   chartPortfolio = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1577,20 +1602,30 @@ function drawPortfolio() {
         label: 'Portfolio Value (ISK)',
         data: values,
         borderColor: '#c9a227',
-        backgroundColor: '#c9a22722',
-        borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4
+        backgroundColor: gradPortfolio,
+        borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 4,
+        pointBackgroundColor: '#c9a227', pointHoverRadius: 7
       }]
     },
-    options: chartOpts(v => fmtIsk(v))
+    options: chartOpts(v => fmtIsk(v), v => fmtIsk(v))
   });
 }
 
-function chartOpts(yFmt) {
+function chartOpts(yFmt, tooltipFmt) {
+  const tfmt = tooltipFmt || yFmt;
   return {
     responsive: true, maintainAspectRatio: false,
     plugins: {
-      legend: { labels: { color: '#d0d8e8' } },
-      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw)}` } }
+      legend: { labels: { color: '#d0d8e8', padding: 16 } },
+      tooltip: {
+        backgroundColor: '#111620',
+        borderColor: '#2a3448',
+        borderWidth: 1,
+        titleColor: '#d0d8e8',
+        bodyColor: '#c9a227',
+        padding: 10,
+        callbacks: { label: c => `  ${c.dataset.label}: ${tfmt(c.raw)}` }
+      }
     },
     scales: {
       x: { ticks: { color: '#7a8899' }, grid: { color: '#1a2030' } },
