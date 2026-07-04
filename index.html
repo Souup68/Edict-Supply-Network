@@ -552,9 +552,18 @@ function applyEfficiencyPreset(val) {
   if (val) document.getElementById('rp-efficiency').value = val;
 }
 
-function calculateReprocess() {
+async function calculateReprocess() {
   const raw = document.getElementById('rp-paste').value.trim();
   if (!raw) { toast('Nothing to calculate.'); return; }
+
+  // Auto-fetch Jita prices before calculating
+  if (!Object.keys(livePrices).length) {
+    const rpBtn = document.querySelector('#tab-reprocess .btn-primary');
+    const origText = rpBtn ? rpBtn.textContent : '';
+    if (rpBtn) { rpBtn.disabled = true; rpBtn.textContent = '⏳ Fetching prices...'; }
+    try { await doFetchPrices(); } catch(e) { toast('Could not fetch prices — showing quantities only.'); }
+    if (rpBtn) { rpBtn.disabled = false; rpBtn.textContent = origText; }
+  }
   const eff = parseFloat(document.getElementById('rp-efficiency').value);
   if (isNaN(eff) || eff <= 0 || eff > 1) { toast('Invalid efficiency value (must be 0.01 – 1.00).'); return; }
 
@@ -678,7 +687,7 @@ function calculateReprocess() {
   const unknownHtml = unknown.length
     ? `<p class="hint" style="color:var(--orange);margin-top:8px">⚠ Skipped (not recognised): ${unknown.join(', ')}</p>` : '';
   const priceNote = !hasPrices
-    ? `<p class="hint" style="color:var(--dim);margin-top:6px">Fetch Jita prices on the Stock tab to see ISK values.</p>` : '';
+    ? `<p class="hint" style="color:var(--orange);margin-top:6px">⚠ Could not fetch Jita prices \u2014 check your connection and try again.</p>` : '';
 
   document.getElementById('rp-results').innerHTML = `
     <div class="panel">
@@ -1167,26 +1176,30 @@ function copyForDiscord() {
   });
 }
 
+async function doFetchPrices() {
+  const ids = MINERALS.map(m => MINERAL_IDS[m]).join(',');
+  const url = `https://market.fuzzwork.co.uk/aggregates/?region=10000002&types=${ids}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('API error ' + res.status);
+  const data = await res.json();
+  livePrices = {}; livePricesSell = {};
+  MINERALS.forEach(m => {
+    const id = String(MINERAL_IDS[m]);
+    if (data[id]) {
+      livePrices[m]     = parseFloat(data[id].buy.max);
+      livePricesSell[m] = parseFloat(data[id].sell.min);
+    }
+  });
+}
+
 async function fetchPrices() {
   const btn = document.getElementById('btn-fetch-prices');
   const status = document.getElementById('price-status');
   btn.disabled = true;
   btn.textContent = '⏳ Fetching...';
   status.textContent = '';
-  const ids = MINERALS.map(m => MINERAL_IDS[m]).join(',');
-  const url = `https://market.fuzzwork.co.uk/aggregates/?region=10000002&types=${ids}`;
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('API error ' + res.status);
-    const data = await res.json();
-    livePrices = {};
-    MINERALS.forEach(m => {
-      const id = String(MINERAL_IDS[m]);
-      if (data[id]) {
-        livePrices[m]     = parseFloat(data[id].buy.max);
-        livePricesSell[m] = parseFloat(data[id].sell.min);
-      }
-    });
+    await doFetchPrices();
     const time = new Date().toLocaleTimeString();
     status.textContent = `Prices fetched at ${time} (Jita best buy)`;
     status.style.color = 'var(--green)';
