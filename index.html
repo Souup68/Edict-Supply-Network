@@ -1014,15 +1014,21 @@ async function fetchEveAssets(token, charId) {
       } catch {}
     }
 
-    // Player structures (ID >= 1 trillion) — /universe/structures/{id}/
+    // Player structures (ID >= 1 trillion)
+    // Try unauthenticated first (works for public / freeport structures),
+    // then fall back to authenticated request, then a readable label.
     const structureIds = locationIds.filter(id => id >= 1_000_000_000_000);
     for (const id of structureIds) {
       try {
-        const sr = await fetch(`${EVE_ESI_URL}/universe/structures/${id}/`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        let sr = await fetch(`${EVE_ESI_URL}/universe/structures/${id}/`);
+        if (!sr.ok && token) {
+          sr = await fetch(`${EVE_ESI_URL}/universe/structures/${id}/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
         if (sr.ok) { const s = await sr.json(); locationNames[id] = s.name; }
-      } catch {}
+        else locationNames[id] = `Player Structure (${id})`;
+      } catch { locationNames[id] = `Player Structure (${id})`; }
     }
 
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
