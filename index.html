@@ -174,6 +174,7 @@
   <button onclick="showTab('trends',this)">📈 Trends</button>
   <button onclick="showTab('reprocess',this)">⚗️ Reprocess</button>
   <button onclick="showTab('data',this)">💾 Data</button>
+  <button onclick="showTab('about',this)">❓ About</button>
 </nav>
 
 <!-- ══════════ STOCK TAB ══════════ -->
@@ -373,6 +374,75 @@
     <div class="panel-title" style="color:var(--red)">Danger Zone</div>
     <p class="hint">Permanently deletes all snapshots and requests. Cannot be undone.</p>
     <button class="btn btn-danger" onclick="nukeAll()">Delete All Data</button>
+  </div>
+
+</div>
+
+<!-- ══════════ ABOUT TAB ══════════ -->
+<div id="tab-about" class="tab">
+
+  <div class="panel">
+    <div class="panel-title">About Souup's Mineral Tracker</div>
+    <p class="hint">A browser-based tool for tracking EVE Online mineral stock, fulfilling player requests, and analysing supply trends — all stored locally in your browser.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">📦 Stock Tab</div>
+    <ul style="font-size:0.88rem;line-height:1.8;padding-left:1.2rem;color:var(--text)">
+      <li><strong>Connect EVE SSO</strong> — Authorise your EVE character to auto-import assets directly from the game. No data is stored on external servers.</li>
+      <li><strong>Fetch Jita Prices</strong> — Pulls current Jita buy prices from the ESI market API so you can see the ISK value of your stock.</li>
+      <li><strong>Save Snapshot</strong> — Records the current mineral quantities and prices as a timestamped snapshot for trend tracking.</li>
+      <li><strong>Copy for Discord</strong> — Formats current stock levels for pasting into a Discord message.</li>
+      <li><strong>Copy for Janice</strong> — Formats mineral quantities for quick paste into the Janice appraisal tool.</li>
+      <li>The <strong>deficit panel</strong> shows how much stock is short relative to pending requests.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">📋 Requests Tab</div>
+    <ul style="font-size:0.88rem;line-height:1.8;padding-left:1.2rem;color:var(--text)">
+      <li>Log incoming mineral requests by entering the player name, date, quantities needed, and optional notes.</li>
+      <li>Requests appear in the history table with a <span class="badge badge-pending">Pending</span> status.</li>
+      <li>Mark requests as <span class="badge badge-fulfilled">Fulfilled</span> or <span class="badge badge-cancelled">Cancelled</span> using the action buttons on each row.</li>
+      <li>Fulfilled requests are factored into the Trends demand charts.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">📈 Trends Tab</div>
+    <ul style="font-size:0.88rem;line-height:1.8;padding-left:1.2rem;color:var(--text)">
+      <li><strong>Stock Level Over Time</strong> — Line chart showing how a chosen mineral's quantity has changed across snapshots.</li>
+      <li><strong>Request Volume by Mineral</strong> — Bar chart of total quantities requested per mineral (fulfilled requests only).</li>
+      <li><strong>Request Count by Mineral</strong> — How many separate requests have included each mineral.</li>
+      <li><strong>Demand vs Supply Summary</strong> — Side-by-side comparison of current stock vs total fulfilled demand.</li>
+      <li><strong>Portfolio Value Over Time</strong> — Total Jita buy value of your stock across snapshots (only for snapshots where prices were fetched).</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">⚗️ Reprocess Tab</div>
+    <ul style="font-size:0.88rem;line-height:1.8;padding-left:1.2rem;color:var(--text)">
+      <li>Calculates the minerals you will get from reprocessing compressed ore.</li>
+      <li>Select a <strong>reprocessing efficiency preset</strong> matching your structure type and space, or enter a custom value manually.</li>
+      <li><strong>Paste ore</strong> directly from your EVE assets window (Name &lt;tab&gt; Quantity, one row per ore type) and click <em>Calculate Reprocess</em>.</li>
+      <li>Results show the mineral yield per ore type and a combined total.</li>
+      <li>Presets assume max skills + RP-804 implant. Adjust the value manually if your skills differ.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">💾 Data Tab</div>
+    <ul style="font-size:0.88rem;line-height:1.8;padding-left:1.2rem;color:var(--text)">
+      <li><strong>Export JSON</strong> — Downloads all your snapshots and requests as a <code>.json</code> backup file.</li>
+      <li><strong>Import JSON</strong> — Restores data from a previously exported backup file.</li>
+      <li><strong>Snapshot History</strong> — View and delete individual snapshots.</li>
+      <li><strong>Delete All Data</strong> — Permanently wipes all snapshots and requests. This cannot be undone.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Storage &amp; Privacy</div>
+    <p style="font-size:0.88rem;line-height:1.7;color:var(--text)">All data is stored in your <strong>browser's localStorage</strong> — nothing is sent to any server. Clearing your browser data will erase your tracker data, so export a backup regularly. The EVE SSO connection is used only to read your character's assets; no write access is granted.</p>
   </div>
 
 </div>
