@@ -765,7 +765,7 @@ async function initEveOAuth() {
     response_type: 'code',
     client_id: EVE_CLIENT_ID,
     redirect_uri: redirectUri,
-    scope: 'esi-assets.read_assets.v1',
+    scope: 'esi-assets.read_assets.v1 esi-universe.read_structures.v1',
     state: state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256'
@@ -973,15 +973,26 @@ async function fetchEveAssets(token, charId) {
     }
     
     const mineralMap = {};
-    const locationBreakdown = {}; // { locationId: { mineralName: qty } }
+    const locationBreakdown = {}; // { resolvedLocationId: { mineralName: qty } }
     const mineralIds = new Set(Object.values(MINERAL_IDS));
+
+    // Build item_id → { location_id, location_type } map so we can walk containers up to stations
+    const itemLocMap = {};
+    allAssets.forEach(item => { itemLocMap[item.item_id] = { location_id: item.location_id, location_type: item.location_type }; });
+
+    function resolveStation(location_id, location_type, depth = 0) {
+      if (depth > 10 || location_type !== 'item') return location_id;
+      const parent = itemLocMap[location_id];
+      if (!parent) return location_id;
+      return resolveStation(parent.location_id, parent.location_type, depth + 1);
+    }
 
     allAssets.forEach(item => {
       if (!mineralIds.has(item.type_id)) return;
       const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
       if (!mineralName) return;
       mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
-      const locId = item.location_id;
+      const locId = resolveStation(item.location_id, item.location_type);
       if (!locationBreakdown[locId]) locationBreakdown[locId] = {};
       locationBreakdown[locId][mineralName] = (locationBreakdown[locId][mineralName] || 0) + item.quantity;
     });
