@@ -197,6 +197,8 @@
     </div>
   </div>
 
+  <div id="location-breakdown"></div>
+
   <div class="panel">
     <div class="panel-title">Record Stock Snapshot</div>
     <div class="mineral-grid" id="stock-inputs"></div>
@@ -971,34 +973,153 @@ async function fetchEveAssets(token, charId) {
     }
     
     const mineralMap = {};
+    const locationBreakdown = {}; // { locationId: { mineralName: qty } }
     const mineralIds = new Set(Object.values(MINERAL_IDS));
-    
-    function processAssets(assetList) {
-      assetList.forEach(item => {
-        if (mineralIds.has(item.type_id)) {
-          const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
-          if (mineralName) {
-            mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
-          }
-        }
-        // Process nested items if they exist
-        if (item.children && Array.isArray(item.children)) {
-          processAssets(item.children);
-        }
-      });
+
+    allAssets.forEach(item => {
+      if (!mineralIds.has(item.type_id)) return;
+      const mineralName = Object.keys(MINERAL_IDS).find(k => MINERAL_IDS[k] === item.type_id);
+      if (!mineralName) return;
+      mineralMap[mineralName] = (mineralMap[mineralName] || 0) + item.quantity;
+      const locId = item.location_id;
+      if (!locationBreakdown[locId]) locationBreakdown[locId] = {};
+      locationBreakdown[locId][mineralName] = (locationBreakdown[locId][mineralName] || 0) + item.quantity;
+    });
+
+    // Resolve location names
+    const locationIds = Object.keys(locationBreakdown).map(Number);
+    const locationNames = {};
+
+    // NPC stations (ID < 1 trillion) — /universe/names/
+    const npcIds = locationIds.filter(id => id < 1_000_000_000_000);
+    if (npcIds.length) {
+      try {
+        const nr = await fetch(`${EVE_ESI_URL}/universe/names/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(npcIds)
+        });
+        if (nr.ok) (await nr.json()).forEach(n => { locationNames[n.id] = n.name; });
+      } catch {}
     }
-    
-    processAssets(allAssets);
-    
+
+    // Player structures (ID >= 1 trillion) — /universe/structures/{id}/
+    const structureIds = locationIds.filter(id => id >= 1_000_000_000_000);
+    for (const id of structureIds) {
+      try {
+        const sr = await fetch(`${EVE_ESI_URL}/universe/structures/${id}/`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (sr.ok) { const s = await sr.json(); locationNames[id] = s.name; }
+      } catch {}
+    }
+
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
       const el = document.getElementById('inp-' + slug(mineral));
       if (el) el.value = qty;
     });
-    
+
+    renderLocationBreakdown(locationBreakdown, locationNames);
     toast(`Loaded ${Object.keys(mineralMap).length} mineral${Object.keys(mineralMap).length > 1 ? 's' : ''} from EVE assets!`);
   } catch (e) {
     toast('Failed to fetch assets: ' + e.message);
   }
+}
+
+function renderLocationBreakdown(breakdown, names) {
+  const el = document.getElementById('location-breakdown');
+  if (!el) return;
+  const locationIds = Object.keys(breakdown);
+  if (!locationIds.length) { el.innerHTML = ''; return; }
+
+  const hasPrices = Object.keys(livePrices).length > 0;
+
+  // Build one card per location
+  const cards = locationIds.map(id => {
+    const name = names[id] || `Unknown container (${id})`;
+    const locMins = MINERALS.filter(m => (breakdown[id][m] || 0) > 0);
+    if (!locMins.length) return '';
+
+    let locIsk = 0;
+    const cells = locMins.map(m => {
+      const qty   = breakdown[id][m];
+      const ci    = MINERALS.indexOf(m);
+      const color = COLORS[ci];
+      const isk   = hasPrices && livePrices[m] ? qty * livePrices[m] : 0;
+      locIsk += isk;
+      const iskHtml = isk > 0
+        ? `<div style="font-size:0.7rem;color:var(--gold);margin-top:1px">${fmtIsk(isk)}</div>`
+        : '';
+      return `<div style="padding:9px 14px;background:var(--bg2)">
+        <div style="font-size:0.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">${m}</div>
+        <div style="font-size:0.9rem;font-family:'Courier New',monospace;color:${color};font-weight:600">${fmt(qty)}</div>
+        ${iskHtml}
+      </div>`;
+    }).join('');
+
+    const iskBadge = locIsk > 0
+      ? `<span style="font-size:0.78rem;color:var(--gold);font-weight:600">${fmtIsk(locIsk)}</span>`
+      : '';
+
+    return `<div style="border:1px solid var(--border);border-radius:4px;overflow:hidden">
+      <div style="padding:9px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span style="color:var(--cyan);font-size:0.85rem;font-weight:600">📍 ${name}</span>
+        ${iskBadge}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1px;background:var(--border)">
+        ${cells}
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  // Grand total row across all locations (only if >1 location)
+  let totalHtml = '';
+  if (locationIds.length > 1) {
+    const allMins = MINERALS.filter(m => locationIds.some(id => breakdown[id][m]));
+    const totalCells = allMins.map(m => {
+      const total = locationIds.reduce((s, id) => s + (breakdown[id][m] || 0), 0);
+      const ci    = MINERALS.indexOf(m);
+      const isk   = hasPrices && livePrices[m] ? total * livePrices[m] : 0;
+      const iskHtml = isk > 0
+        ? `<div style="font-size:0.7rem;color:var(--gold);margin-top:1px">${fmtIsk(isk)}</div>`
+        : '';
+      return `<div style="padding:9px 14px;background:var(--bg2)">
+        <div style="font-size:0.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">${m}</div>
+        <div style="font-size:0.9rem;font-family:'Courier New',monospace;color:${COLORS[ci]};font-weight:700">${fmt(total)}</div>
+        ${iskHtml}
+      </div>`;
+    }).join('');
+
+    let grandIsk = 0;
+    if (hasPrices) allMins.forEach(m => {
+      grandIsk += locationIds.reduce((s, id) => s + (breakdown[id][m] || 0), 0) * (livePrices[m] || 0);
+    });
+    const grandIskBadge = grandIsk > 0
+      ? `<span style="font-size:0.78rem;color:var(--gold);font-weight:600">${fmtIsk(grandIsk)}</span>`
+      : '';
+
+    totalHtml = `<div style="border:1px solid var(--border);border-radius:4px;overflow:hidden;border-color:var(--gold)44">
+      <div style="padding:9px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span style="color:var(--goldlt);font-size:0.85rem;font-weight:700">∑ All Locations Combined</span>
+        ${grandIskBadge}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1px;background:var(--border)44">
+        ${totalCells}
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="panel">
+      <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Minerals by Location</span>
+        <span style="font-size:0.75rem;color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">${locationIds.length} location${locationIds.length > 1 ? 's' : ''}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${cards}
+        ${totalHtml}
+      </div>
+    </div>`;
 }
 
 // ── Live price cache (session only, not persisted) ─────────────────────────────
