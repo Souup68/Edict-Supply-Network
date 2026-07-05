@@ -765,7 +765,7 @@ async function initEveOAuth() {
     response_type: 'code',
     client_id: EVE_CLIENT_ID,
     redirect_uri: redirectUri,
-    scope: 'esi-assets.read_assets.v1',
+    scope: 'esi-assets.read_assets.v1 esi-universe.read_structures.v1',
     state: state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256'
