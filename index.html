@@ -187,29 +187,20 @@
     </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-title">Paste from EVE Assets</div>
-    <p class="hint">Copy your minerals from the EVE assets window and paste below — quantities will fill in automatically.</p>
-    <textarea id="asset-paste" rows="6" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:3px;font-family:'Courier New',monospace;font-size:0.82rem;resize:vertical" placeholder="Paste EVE asset rows here..."></textarea>
-    <div class="actions" style="margin-top:10px">
-      <button class="btn btn-primary" onclick="parseAssetPaste()">⬆ Import Quantities</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('asset-paste').value='';">Clear</button>
-    </div>
-  </div>
-
   <div id="location-breakdown"></div>
 
   <div class="panel">
-    <div class="panel-title">Record Stock Snapshot</div>
-    <div class="mineral-grid" id="stock-inputs"></div>
-    <div class="actions">
-      <button class="btn btn-primary" onclick="saveSnapshot()">Save Snapshot</button>
-      <button class="btn btn-secondary" onclick="loadLast()">Load Last Values</button>
-      <button class="btn btn-secondary" onclick="resetInputs()">Reset Values</button>
-      <button class="btn btn-secondary" id="btn-fetch-prices" onclick="fetchPrices()">💹 Fetch Jita Prices</button>
-      <span class="hint" id="price-status" style="margin:0"></span>
-      <span class="hint" id="snap-count" style="margin:0"></span>
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span>Current Totals</span>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-secondary" id="btn-fetch-prices" onclick="fetchPrices()">💹 Fetch Jita Prices</button>
+        <button class="btn btn-secondary btn-sm" onclick="saveSnapshot()">💾 Save Snapshot</button>
+        <span class="hint" id="price-status" style="margin:0"></span>
+        <span class="hint" id="snap-count" style="margin:0"></span>
+      </div>
     </div>
+    <div id="stock-totals-grid"><div class="empty dim">Refresh assets to populate.</div></div>
+    <div class="mineral-grid" id="stock-inputs" style="display:none"></div>
   </div>
 
   <div class="panel">
@@ -222,7 +213,7 @@
       <button class="btn btn-secondary btn-sm" onclick="copyForDiscord()">📋 Copy for Discord</button>
       <button class="btn btn-secondary btn-sm" onclick="copyForJanice()">🔍 Copy for Janice</button>
     </div>
-    <div id="stock-display"><div class="empty">No snapshots yet. Enter your levels above and save.</div></div>
+    <div id="stock-display"><div class="empty">No snapshots yet.</div></div>
   </div>
 
 </div>
@@ -1037,7 +1028,10 @@ async function fetchEveAssets(token, charId) {
     });
 
     renderLocationBreakdown(locationBreakdown, locationNames);
-    toast(`Loaded ${Object.keys(mineralMap).length} mineral${Object.keys(mineralMap).length > 1 ? 's' : ''} from EVE assets!`);
+
+    // Auto-save snapshot after successful asset import
+    saveSnapshot(true);
+    toast(`Assets imported — snapshot saved! 💾`);
   } catch (e) {
     toast('Failed to fetch assets: ' + e.message);
   }
@@ -1161,34 +1155,7 @@ function showTab(name, btn) {
 }
 
 // ── Build dynamic elements ─────────────────────────────────────────────────────
-function parseAssetPaste() {
-  const raw = document.getElementById('asset-paste').value;
-  if (!raw.trim()) { toast('Nothing to parse.'); return; }
-
-  const parsed = {};
-  raw.split('\n').forEach(line => {
-    const parts = line.split('\t');
-    if (parts.length < 2) return;
-    const name = parts[0].trim();
-    const qtyStr = parts[1].trim().replace(/,/g, '');
-    const qty = parseFloat(qtyStr);
-    if (!name || isNaN(qty)) return;
-    // Case-insensitive match against our mineral list
-    const match = MINERALS.find(m => m.toLowerCase() === name.toLowerCase());
-    if (match) parsed[match] = qty;
-  });
-
-  const found = Object.keys(parsed);
-  if (!found.length) { toast('No matching minerals found in pasted text.'); return; }
-
-  found.forEach(m => {
-    const el = document.getElementById('inp-' + slug(m));
-    if (el) el.value = parsed[m];
-  });
-
-  document.getElementById('asset-paste').value = '';
-  toast(`Imported ${found.length} mineral${found.length > 1 ? 's' : ''} — review and save snapshot.`);
-}
+function parseAssetPaste() {} // removed — use EVE SSO asset import
 
 function buildInputs() {
   document.getElementById('stock-inputs').innerHTML = MINERALS.map(m => `
@@ -1215,7 +1182,7 @@ function fmtCommaInput(el) {
 function slug(m) { return m.replace(/\s+/g,'_'); }
 
 // ── Snapshots ──────────────────────────────────────────────────────────────────
-function saveSnapshot() {
+function saveSnapshot(silent = false) {
   const d = load();
   const stocks = {};
   MINERALS.forEach(m => { stocks[m] = parseFloat(document.getElementById('inp-' + slug(m)).value) || 0; });
@@ -1223,7 +1190,7 @@ function saveSnapshot() {
   if (Object.keys(livePrices).length) snap.prices = { ...livePrices };
   d.snapshots.push(snap);
   save(d);
-  toast('Snapshot saved! 💾 Remember to export for backup.');
+  if (!silent) toast('Snapshot saved! 💾 Remember to export for backup.');
   renderStock();
   updateHeader();
 }
@@ -1355,7 +1322,37 @@ function loadLast() {
   toast('Last snapshot loaded into form.');
 }
 
+function renderStockTotalsGrid() {
+  const el = document.getElementById('stock-totals-grid');
+  if (!el) return;
+  const d = load();
+  if (!d.snapshots.length) { el.innerHTML = '<div class="empty dim">Refresh assets to populate.</div>'; return; }
+  const last = d.snapshots[d.snapshots.length - 1];
+  const prices = Object.keys(livePrices).length ? livePrices : (last.prices || {});
+  const hasPrices = Object.keys(prices).length > 0;
+
+  let totalIsk = 0;
+  const cards = MINERALS.map((m, i) => {
+    const qty = last.stocks[m] ?? 0;
+    if (!qty) return '';
+    const isk = hasPrices && prices[m] ? qty * prices[m] : 0;
+    totalIsk += isk;
+    const iskHtml = isk > 0 ? `<div style="font-size:0.7rem;color:var(--gold);margin-top:2px">${fmtIsk(isk)}</div>` : '';
+    return `<div class="stat-card" style="text-align:left;padding:10px 14px">
+      <div style="font-size:0.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">${m}</div>
+      <div style="font-size:1rem;font-weight:700;font-family:'Courier New',monospace;color:${COLORS[i]}">${fmt(qty)}</div>
+      ${iskHtml}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  const iskTotal = totalIsk > 0
+    ? `<div style="margin-top:12px;text-align:right;color:var(--goldlt);font-size:0.95rem;font-weight:700">Total: ${fmtIsk(totalIsk)}</div>` : '';
+
+  el.innerHTML = `<div class="stat-grid" style="margin-bottom:0">${cards}</div>${iskTotal}`;
+}
+
 function renderStock() {
+  renderStockTotalsGrid();
   const d = load();
   const wrap = document.getElementById('stock-display');
   if (!d.snapshots.length) {
