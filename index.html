@@ -1102,6 +1102,12 @@ async function fetchEveAssets(token, charId) {
       } catch { locationNames[id] = `Player Structure (${id})`; }
     }
 
+    // Zero out all mineral inputs first so minerals no longer in assets don't persist
+    MINERALS.forEach(m => {
+      const el = document.getElementById('inp-' + slug(m));
+      if (el) el.value = 0;
+    });
+
     Object.entries(mineralMap).forEach(([mineral, qty]) => {
       const el = document.getElementById('inp-' + slug(mineral));
       if (el) el.value = qty;
@@ -1624,44 +1630,13 @@ function setStatus(id, status) {
   const r = d.requests.find(r => r.id === id);
   if (!r) return;
 
-  const wasPending = r.status === 'pending';
   r.status = status;
-
-  // When fulfilling a pending request, deduct quantities from stock
-  if (status === 'fulfilled' && wasPending) {
-    if (!d.snapshots.length) {
-      save(d);
-      renderRequests();
-      renderStock();
-      toast('Request fulfilled — no stock snapshot to deduct from.');
-      return;
-    }
-    const last = d.snapshots[d.snapshots.length - 1];
-    const newStocks = { ...last.stocks };
-    const minerals = r.minerals || (r.mineral ? { [r.mineral]: r.quantity } : {});
-    let anyDeducted = false;
-    Object.entries(minerals).forEach(([m, q]) => {
-      if (m in newStocks) {
-        newStocks[m] = Math.max(0, (newStocks[m] ?? 0) - q);
-        anyDeducted = true;
-      }
-    });
-    if (anyDeducted) {
-      d.snapshots.push({ id: Date.now(), date: new Date().toISOString(), stocks: newStocks, note: `Auto: fulfilled order for ${r.player}` });
-    }
-  }
-
-  // When resetting a fulfilled request back to pending, reverse the deduction
-  if (status === 'pending' && r.status !== 'pending') {
-    // status was already set above, check original — handled by re-adding to pending display
-    // No automatic stock reversal; user should correct via snapshot if needed
-  }
 
   save(d);
   renderRequests();
   renderStock();
   updateHeader();
-  toast(status === 'fulfilled' ? 'Fulfilled — stock updated!' : 'Status updated.');
+  toast('Status updated.');
 }
 
 function delRequest(id) {
