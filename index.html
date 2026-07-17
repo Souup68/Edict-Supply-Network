@@ -205,10 +205,6 @@
   </div>
 
   <div class="panel">
-    <div id="deficit-panel"></div>
-  </div>
-
-  <div class="panel">
     <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
       <span>Current Stock Levels</span>
       <button class="btn btn-secondary btn-sm" onclick="copyForDiscord()">📋 Copy for Discord</button>
@@ -1448,17 +1444,6 @@ function renderStock() {
   const last = d.snapshots[d.snapshots.length - 1];
   const prev = d.snapshots.length > 1 ? d.snapshots[d.snapshots.length - 2] : null;
 
-  // Pending demand per mineral
-  const pending = {};
-  MINERALS.forEach(m => pending[m] = 0);
-  d.requests.filter(r => r.status === 'pending').forEach(r => {
-    if (r.minerals) {
-      Object.entries(r.minerals).forEach(([m, q]) => { if (m in pending) pending[m] += q; });
-    } else if (r.mineral in pending) {
-      pending[r.mineral] += r.quantity;
-    }
-  });
-
   const prices = Object.keys(livePrices).length ? livePrices : (last.prices || {});
   const hasPrices = Object.keys(prices).length > 0;
   let totalIsk = 0;
@@ -1467,9 +1452,6 @@ function renderStock() {
     const qty  = last.stocks[m] ?? 0;
     const prev_qty = prev ? (prev.stocks[m] ?? 0) : null;
     const diff = prev_qty !== null ? qty - prev_qty : null;
-    const pend = pending[m];
-    const after = qty - pend;
-
     let dotCls = 'dot-zero';
     if (qty > 0) dotCls = qty > 5000000 ? 'dot-high' : qty > 500000 ? 'dot-mid' : 'dot-low';
 
@@ -1478,11 +1460,6 @@ function renderStock() {
       if (diff > 0) diffHtml = `<span class="pos">▲ ${fmt(diff)}</span>`;
       else if (diff < 0) diffHtml = `<span class="neg">▼ ${fmt(Math.abs(diff))}</span>`;
     }
-
-    const pendHtml = pend > 0 ? `<span class="neg">−${fmt(pend)}</span>` : '<span class="dim">—</span>';
-    const afterHtml = pend > 0
-      ? `<span class="${after < 0 ? 'neg' : 'pos'}">${fmt(after)}</span>`
-      : '<span class="dim">—</span>';
 
     let iskHtml = '<span class="dim">—</span>';
     if (hasPrices && prices[m] && qty > 0) {
@@ -1495,8 +1472,6 @@ function renderStock() {
       <td><span class="dot ${dotCls}"></span>${m}</td>
       <td class="mono">${fmt(qty)}</td>
       <td>${diffHtml}</td>
-      <td>${pendHtml}</td>
-      <td>${afterHtml}</td>
       <td>${iskHtml}</td>
     </tr>`;
   }).join('');
@@ -1505,48 +1480,8 @@ function renderStock() {
     ? (Object.keys(livePrices).length ? ' &nbsp;|&nbsp; <span style="color:var(--green)">Live prices loaded</span>' : ' &nbsp;|&nbsp; <span style="color:var(--dim)">Prices from snapshot</span>')
     : ' &nbsp;|&nbsp; <span style="color:var(--dim)">No prices — click Fetch Jita Prices</span>';
   const totalRow = hasPrices && totalIsk > 0
-    ? `<tr style="border-top:2px solid var(--border)"><td colspan="5" style="text-align:right;color:var(--dim);font-size:0.8rem;padding-right:8px">Total Portfolio Value</td><td style="color:var(--goldlt);font-weight:700">${fmtIsk(totalIsk)}</td></tr>`
+    ? `<tr style="border-top:2px solid var(--border)"><td colspan="3" style="text-align:right;color:var(--dim);font-size:0.8rem;padding-right:8px">Total Portfolio Value</td><td style="color:var(--goldlt);font-weight:700">${fmtIsk(totalIsk)}</td></tr>`
     : '';
-
-  // ── Deficit panel ────────────────────────────────────────────────────────
-  const deficitEl = document.getElementById('deficit-panel');
-  if (deficitEl) {
-    const pendingMins = MINERALS.filter(m => pending[m] > 0);
-    if (!pendingMins.length) {
-      deficitEl.innerHTML = '';
-    } else {
-      const shortMins = pendingMins.filter(m => (last.stocks[m] ?? 0) - pending[m] < 0);
-      const coveredMins = pendingMins.filter(m => (last.stocks[m] ?? 0) - pending[m] >= 0);
-      const shortCount = shortMins.length;
-      const headline = shortCount === 0
-        ? `<span style="color:var(--green)">✔ All pending orders covered by current stock</span>`
-        : `<span style="color:var(--red)">⚠ ${shortCount} mineral${shortCount > 1 ? 's' : ''} short for pending orders</span>`;
-
-      let deficitIsk = 0;
-      const cards = pendingMins.map(m => {
-        const stock = last.stocks[m] ?? 0;
-        const need = pending[m];
-        const diff = stock - need;
-        const isShort = diff < 0;
-        const cardColor = isShort ? 'var(--red)' : 'var(--green)';
-        const diffLabel = isShort ? `SHORT ${fmt(Math.abs(diff))}` : `+${fmt(diff)} surplus`;
-        if (isShort && hasPrices && prices[m]) deficitIsk += Math.abs(diff) * prices[m];
-        return `<div style="background:var(--bg3);border:1px solid ${cardColor}33;border-left:3px solid ${cardColor};border-radius:4px;padding:8px 12px;min-width:160px">
-          <div style="font-size:0.78rem;color:var(--dim);margin-bottom:2px">${m}</div>
-          <div style="font-size:0.88rem;color:var(--text)">Need <strong>${fmt(need)}</strong> &nbsp;·&nbsp; Have <strong>${fmt(stock)}</strong></div>
-          <div style="font-size:0.82rem;color:${cardColor};font-weight:600;margin-top:3px">${diffLabel}</div>
-        </div>`;
-      }).join('');
-
-      const iskHtml = deficitIsk > 0 && hasPrices
-        ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--goldlt)">Shortfall value at Jita: <strong>${fmtIsk(deficitIsk)}</strong></div>` : '';
-
-      deficitEl.innerHTML = `
-        <div style="margin-bottom:8px;font-size:0.9rem;font-weight:600">${headline}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">${cards}</div>
-        ${iskHtml}`;
-    }
-  }
 
   // ── At-a-glance bars (log scale so rare minerals stay visible) ──────────────
   const _barMax = Math.max(...MINERALS.map(m => last.stocks[m] ?? 0), 1);
@@ -1555,17 +1490,13 @@ function renderStock() {
     + '<div class="stock-bars">'
     + MINERALS.map((m, i) => {
         const qty  = last.stocks[m] ?? 0;
-        const pend = pending[m];
         const pct  = (_logMax > 0 ? Math.log10(qty + 1) / _logMax * 100 : 0).toFixed(1);
         const clr  = COLORS[i];
-        const pendHtml = pend > 0
-          ? `<span class="sbar-pend" style="color:var(--red)">−${fmtShort(pend)}</span>`
-          : '<span class="sbar-pend"></span>';
         return `<div class="sbar">`
           + `<span class="sbar-name" style="color:${clr}">${m}</span>`
           + `<div class="sbar-track" title="${fmt(qty)} units"><div class="sbar-fill" style="width:${pct}%;background:${clr}38;box-shadow:inset 0 0 0 1px ${clr}66"></div></div>`
           + `<span class="sbar-num" style="color:${qty===0?'var(--dim)':clr}">${qty>0?fmt(qty):'—'}</span>`
-          + pendHtml + '</div>';
+          + '</div>';
       }).join('')
     + '</div>';
 
@@ -1573,7 +1504,7 @@ function renderStock() {
     <p class="hint" style="margin-top:14px">Last snapshot: ${new Date(last.date).toLocaleString()} &nbsp;|&nbsp; ${d.snapshots.length} total snapshot(s)${priceNote}</p>
     <table>
       <thead><tr>
-        <th>Mineral</th><th>Stock</th><th>vs Prev</th><th>Pending Orders</th><th>After Fill</th><th>ISK Value</th>
+        <th>Mineral</th><th>Stock</th><th>vs Prev</th><th>ISK Value</th>
       </tr></thead>
       <tbody>${rows}${totalRow}</tbody>
     </table>`;
